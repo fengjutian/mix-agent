@@ -123,50 +123,98 @@ function StatCard({ label, value }: { label: string; value?: string }) {
 
 // ── Lock Screen Password Section ──
 
-function LockPasswordSection() {
-  const { hasPassword, setPassword, changePassword, removePassword } = useAuthStore();
+type LockMode = "view" | "set" | "change" | "remove";
 
-  const [mode, setMode] = useState<"view" | "set" | "change" | "remove">("view");
+interface LockFormProps {
+  error: string;
+  onCancel: () => void;
+}
+
+function SetPasswordForm({ error, onCancel, onSubmit }: LockFormProps & { onSubmit: (password: string, confirm: string) => void }) {
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); onSubmit(password, confirm); }}>
+      <div className="form-group">
+        <label className="form-label">新密码</label>
+        <input className="form-input" type="password" value={password}
+          onChange={(e) => setPassword(e.target.value)} autoFocus />
+      </div>
+      <div className="form-group">
+        <label className="form-label">确认密码</label>
+        <input className="form-input" type="password" value={confirm}
+          onChange={(e) => setConfirm(e.target.value)} />
+      </div>
+      {error && <div className="error-message" style={{ marginBottom: 16 }}>{error}</div>}
+      <div style={{ display: "flex", gap: 8 }}>
+        <button type="submit" className="btn btn--primary btn--sm">确认</button>
+        <button type="button" className="btn btn--ghost btn--sm" onClick={onCancel}>取消</button>
+      </div>
+    </form>
+  );
+}
+
+function ChangePasswordForm({ error, onCancel, onSubmit }: LockFormProps & { onSubmit: (current: string, next: string, confirm: string) => void }) {
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
+
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); onSubmit(current, next, confirm); }}>
+      <div className="form-group">
+        <label className="form-label">当前密码</label>
+        <input className="form-input" type="password" value={current}
+          onChange={(e) => setCurrent(e.target.value)} autoFocus />
+      </div>
+      <div className="form-group">
+        <label className="form-label">新密码</label>
+        <input className="form-input" type="password" value={next}
+          onChange={(e) => setNext(e.target.value)} />
+      </div>
+      <div className="form-group">
+        <label className="form-label">确认新密码</label>
+        <input className="form-input" type="password" value={confirm}
+          onChange={(e) => setConfirm(e.target.value)} />
+      </div>
+      {error && <div className="error-message" style={{ marginBottom: 16 }}>{error}</div>}
+      <div style={{ display: "flex", gap: 8 }}>
+        <button type="submit" className="btn btn--primary btn--sm">确认</button>
+        <button type="button" className="btn btn--ghost btn--sm" onClick={onCancel}>取消</button>
+      </div>
+    </form>
+  );
+}
+
+function RemovePasswordForm({ error, onCancel, onSubmit }: LockFormProps & { onSubmit: (current: string) => void }) {
+  const [current, setCurrent] = useState("");
+
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); onSubmit(current); }}>
+      <div className="form-group">
+        <label className="form-label">输入当前密码以确认移除</label>
+        <input className="form-input" type="password" value={current}
+          onChange={(e) => setCurrent(e.target.value)} autoFocus />
+      </div>
+      {error && <div className="error-message" style={{ marginBottom: 16 }}>{error}</div>}
+      <div style={{ display: "flex", gap: 8 }}>
+        <button type="submit" className="btn btn--danger btn--sm">确认移除</button>
+        <button type="button" className="btn btn--ghost btn--sm" onClick={onCancel}>取消</button>
+      </div>
+    </form>
+  );
+}
+
+function LockPasswordSection() {
+  const { hasPassword, setPassword, changePassword, removePassword } = useAuthStore();
+
+  const [mode, setMode] = useState<LockMode>("view");
   const [error, setError] = useState("");
   const [ok, setOk] = useState("");
 
   const reset = () => {
-    setCurrent("");
-    setNext("");
-    setConfirm("");
     setError("");
     setOk("");
-  };
-
-  const handleSet = () => {
-    setError("");
-    if (!next || next.length < 1) { setError("密码不能为空"); return; }
-    if (next !== confirm) { setError("两次输入不一致"); return; }
-    if (!setPassword(next)) { setError("密码已存在"); return; }
-    setOk("锁屏密码已设置");
-    setMode("view");
-    reset();
-  };
-
-  const handleChange = () => {
-    setError("");
-    if (!next || next.length < 1) { setError("新密码不能为空"); return; }
-    if (next !== confirm) { setError("两次输入不一致"); return; }
-    if (!changePassword(current, next)) { setError("当前密码错误"); return; }
-    setOk("密码已更改");
-    setMode("view");
-    reset();
-  };
-
-  const handleRemove = () => {
-    setError("");
-    if (!removePassword(current)) { setError("密码错误"); return; }
-    setOk("锁屏密码已移除");
-    setMode("view");
-    reset();
   };
 
   return (
@@ -207,73 +255,53 @@ function LockPasswordSection() {
         </div>
       )}
 
-      {/* Set new password */}
       {mode === "set" && (
-        <form onSubmit={(e) => { e.preventDefault(); handleSet(); }}>
-          <div className="form-group">
-            <label className="form-label">新密码</label>
-            <input className="form-input" type="password" value={next}
-              onChange={(e) => setNext(e.target.value)} autoFocus />
-          </div>
-          <div className="form-group">
-            <label className="form-label">确认密码</label>
-            <input className="form-input" type="password" value={confirm}
-              onChange={(e) => setConfirm(e.target.value)} />
-          </div>
-          {error && <div className="error-message" style={{ marginBottom: 16 }}>{error}</div>}
-          <div style={{ display: "flex", gap: 8 }}>
-            <button type="submit" className="btn btn--primary btn--sm">确认</button>
-            <button type="button" className="btn btn--ghost btn--sm" onClick={() => { setMode("view"); reset(); }}>
-              取消
-            </button>
-          </div>
-        </form>
+        <SetPasswordForm
+          error={error}
+          onCancel={() => { setMode("view"); reset(); }}
+          onSubmit={(password, confirm) => {
+            setError("");
+            if (!password || password.length < 1) { setError("密码不能为空"); return; }
+            if (password !== confirm) { setError("两次输入不一致"); return; }
+            const result = setPassword(password);
+            if (!result.ok) { setError(result.error ?? "设置失败"); return; }
+            setOk("锁屏密码已设置");
+            setMode("view");
+            reset();
+          }}
+        />
       )}
 
-      {/* Change password */}
       {mode === "change" && (
-        <form onSubmit={(e) => { e.preventDefault(); handleChange(); }}>
-          <div className="form-group">
-            <label className="form-label">当前密码</label>
-            <input className="form-input" type="password" value={current}
-              onChange={(e) => setCurrent(e.target.value)} autoFocus />
-          </div>
-          <div className="form-group">
-            <label className="form-label">新密码</label>
-            <input className="form-input" type="password" value={next}
-              onChange={(e) => setNext(e.target.value)} />
-          </div>
-          <div className="form-group">
-            <label className="form-label">确认新密码</label>
-            <input className="form-input" type="password" value={confirm}
-              onChange={(e) => setConfirm(e.target.value)} />
-          </div>
-          {error && <div className="error-message" style={{ marginBottom: 16 }}>{error}</div>}
-          <div style={{ display: "flex", gap: 8 }}>
-            <button type="submit" className="btn btn--primary btn--sm">确认</button>
-            <button type="button" className="btn btn--ghost btn--sm" onClick={() => { setMode("view"); reset(); }}>
-              取消
-            </button>
-          </div>
-        </form>
+        <ChangePasswordForm
+          error={error}
+          onCancel={() => { setMode("view"); reset(); }}
+          onSubmit={(current, next, confirm) => {
+            setError("");
+            if (!next || next.length < 1) { setError("新密码不能为空"); return; }
+            if (next !== confirm) { setError("两次输入不一致"); return; }
+            const result = changePassword(current, next);
+            if (!result.ok) { setError(result.error ?? "修改失败"); return; }
+            setOk("密码已更改");
+            setMode("view");
+            reset();
+          }}
+        />
       )}
 
-      {/* Remove password */}
       {mode === "remove" && (
-        <form onSubmit={(e) => { e.preventDefault(); handleRemove(); }}>
-          <div className="form-group">
-            <label className="form-label">输入当前密码以确认移除</label>
-            <input className="form-input" type="password" value={current}
-              onChange={(e) => setCurrent(e.target.value)} autoFocus />
-          </div>
-          {error && <div className="error-message" style={{ marginBottom: 16 }}>{error}</div>}
-          <div style={{ display: "flex", gap: 8 }}>
-            <button type="submit" className="btn btn--danger btn--sm">确认移除</button>
-            <button type="button" className="btn btn--ghost btn--sm" onClick={() => { setMode("view"); reset(); }}>
-              取消
-            </button>
-          </div>
-        </form>
+        <RemovePasswordForm
+          error={error}
+          onCancel={() => { setMode("view"); reset(); }}
+          onSubmit={(current) => {
+            setError("");
+            const result = removePassword(current);
+            if (!result.ok) { setError(result.error ?? "移除失败"); return; }
+            setOk("锁屏密码已移除");
+            setMode("view");
+            reset();
+          }}
+        />
       )}
     </div>
   );

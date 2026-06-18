@@ -57,8 +57,14 @@ class RouteScanner:
     def scan_file(self, file_path: str | Path) -> RouteScanResult:
         """扫描单个文件。"""
         path = Path(file_path)
-        source = path.read_text(encoding="utf-8")
-        tree = ast.parse(source, filename=str(path))
+        try:
+            source = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            return RouteScanResult()
+        try:
+            tree = ast.parse(source, filename=str(path))
+        except SyntaxError:
+            return RouteScanResult()
         return self._scan_tree(tree, str(path))
 
     def scan_files(self, file_paths: list[str | Path]) -> dict[str, RouteScanResult]:
@@ -79,7 +85,10 @@ class RouteScanner:
         for py_file in root_path.rglob("*.py"):
             if "__pycache__" in str(py_file):
                 continue
-            result = self.scan_file(py_file)
+            try:
+                result = self.scan_file(py_file)
+            except Exception:
+                continue
             merged.routes.extend(result.routes)
             merged.routers.extend(result.routers)
             merged.unauthenticated_routes.extend(result.unauthenticated_routes)
