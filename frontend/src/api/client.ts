@@ -100,6 +100,38 @@ export function cancelTask(taskId: string) {
   });
 }
 
+// ── Agent (Phase 2 AI) ──
+export function runAgent(body: {
+  description: string;
+  target_branch: string;
+  base_branch: string;
+  repo_path: string;
+  force?: boolean;
+}) {
+  return request<{ task_id: string; status: string; message: string }>("/agent/run", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function getAgentResult(taskId: string) {
+  return request<{
+    task_id: string;
+    status: string;
+    result: {
+      parse_result: any;
+      orchestrator_result: any;
+      code_review_result: any;
+      sql_audit_result: any;
+      summary_result: any;
+      accumulated_tokens: number;
+    };
+    changed_files: any[];
+    changed_files_count: number;
+    git_error: string | null;
+  }>(`/agent/${taskId}/result`);
+}
+
 export function getTask(taskId: string) {
   return request<{
     task_id: string;

@@ -1,6 +1,10 @@
-import { HashRouter, Routes, Route, Link, Navigate, useLocation } from "react-router-dom";
+import { useState, useCallback } from "react";
+import { HashRouter, Routes, Route, Link, Navigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useAuthStore } from "./stores/auth";
+import { useResizable } from "./hooks/useResizable";
+import ActivityBar from "./components/ActivityBar";
+import Sidebar from "./components/Sidebar";
 import LoginPage from "./pages/Login";
 import HomePage from "./pages/Home";
 import TaskDetailPage from "./pages/TaskDetail";
@@ -9,33 +13,21 @@ import SettingsPage from "./pages/Settings";
 
 const queryClient = new QueryClient();
 
-function NavLink({ to, children }: { to: string; children: React.ReactNode }) {
-  const location = useLocation();
-  const isActive = location.pathname === to;
-  return (
-    <Link to={to} className={isActive ? "active" : ""}>
-      {children}
-    </Link>
-  );
-}
-
 function Layout({ children }: { children: React.ReactNode }) {
   const { isLoggedIn, logout } = useAuthStore();
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const { panelRef, onMouseDown } = useResizable({ initial: 260, min: 180, max: 420 });
+
+  const toggleSidebar = useCallback(() => setSidebarOpen((o) => !o), []);
 
   return (
     <div className="page-shell">
+      {/* ── Slim top bar ── */}
       <header className="site-header">
         <Link to="/" className="site-header__brand">
           <span className="site-header__brand-dot" />
           mix-agent
         </Link>
-
-        <nav className="site-header__nav">
-          <NavLink to="/">Home</NavLink>
-          <NavLink to="/approvals">Approvals</NavLink>
-          <NavLink to="/settings">Cost</NavLink>
-        </nav>
-
         <div className="site-header__actions">
           {isLoggedIn ? (
             <button onClick={logout} className="btn btn--secondary btn--sm">
@@ -49,7 +41,39 @@ function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      <main className="page-content">{children}</main>
+      {/* ── Body: Activity Bar | Sidebar | Content ── */}
+      <div className="workspace">
+        <ActivityBar />
+
+        <div className={`sidebar-area${sidebarOpen ? "" : " sidebar-area--collapsed"}`} ref={panelRef}>
+          <div className="sidebar-area__inner">
+            <div className="sidebar-area__header">
+              <span className="sidebar-area__title">Explorer</span>
+              <button
+                className="sidebar-area__collapse-btn"
+                onClick={toggleSidebar}
+                aria-label="Toggle sidebar"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  {sidebarOpen ? (
+                    <polyline points="15 18 9 12 15 6" />
+                  ) : (
+                    <polyline points="9 18 15 12 9 6" />
+                  )}
+                </svg>
+              </button>
+            </div>
+            <Sidebar />
+          </div>
+        </div>
+
+        {/* Resize handle */}
+        {sidebarOpen && (
+          <div className="workspace__resize-handle" onMouseDown={onMouseDown} />
+        )}
+
+        <main className="page-content">{children}</main>
+      </div>
     </div>
   );
 }

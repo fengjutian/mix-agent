@@ -67,6 +67,27 @@ class TaskResponse(BaseModel):
     status: TaskStatus
 
 
+# ──────────── Phase 2 AI Agent ────────────
+
+
+class AgentRunRequest(BaseModel):
+    """AI Agent 审计请求（LLM 理解 + 编排）。"""
+
+    description: str = ""
+    target_branch: str = "HEAD"
+    base_branch: str = "main"
+    repo_path: str = "."
+    force: bool = False  # 即使无变更也强制运行
+
+
+class AgentRunResponse(BaseModel):
+    """AI Agent 审计响应。"""
+
+    task_id: str
+    status: TaskStatus
+    message: str = ""
+
+
 # ──────────── 审计发现与报告 ────────────
 
 
