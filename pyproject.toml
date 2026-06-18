@@ -1,0 +1,45 @@
+[project]
+name = "mix-agent"
+version = "0.1.0"
+description = "企业级多智能体协同系统：涵盖需求逆向、动静态代码解析与高危SQL安全审计"
+authors = [
+    {name = "charles.feng",email = "charles.feng@quintarabio.com"}
+]
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+]
+
+[tool.poetry]
+packages = [{include = "mix_agent", from = "src"}]
+python = "^3.11"
+# 1. 接口与网关层核心依赖
+fastapi = "^0.111.0"
+uvicorn = {extras = ["standard"], version = "^0.30.1"}
+pydantic = "^2.7.4"
+python-dotenv = "^1.0.1"
+
+# 2. 多智能体编排与状态机
+langgraph = "^0.0.60"
+
+# 3. 极度节流：底座向量数据库客户端（适配 FastAPI 异步架构）
+qdrant-client = "^1.9.1"
+
+# 4. 安全防御与代码静态解析引擎（硬拦截门禁）
+sqlglot = "^25.3.0"
+tree-sitter = "^0.22.3"
+
+# 5. 持久化与状态缓存（存储 LangGraph 挂起状态与 Token 分布式熔断计数）
+redis = "^5.0.4"
+
+[tool.poetry.group.dev.dependencies]
+# 6. 自动化测试与虚拟环境隔离验证组件
+pytest = "^8.2.2"
+pytest-asyncio = "^0.23.7"
+httpx = "^0.27.0"  # 用于 FastAPI 接口的高并发集成测试
+docker = "^7.1.0"   # 用于本地开发测试时，动态调度和监控隔离沙箱容器
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
