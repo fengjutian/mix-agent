@@ -93,7 +93,8 @@ def set_key(provider: str, api_key: str, base_url: str = "", model: str = "") ->
         if provider not in data:
             data[provider] = {}
 
-        data[provider]["api_key"] = api_key
+        if api_key:
+            data[provider]["api_key"] = api_key
         if base_url:
             data[provider]["base_url"] = base_url
         if model:

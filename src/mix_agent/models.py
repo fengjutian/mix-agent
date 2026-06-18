@@ -251,6 +251,23 @@ class AgentTokenLog(Base):
     )
 
 
+# ── Global Settings ──
+
+
+class GlobalSettings(Base):
+    """全局应用设置 — 单行配置表，使用 JSONB 存储所有设置项。"""
+
+    __tablename__ = "global_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    data: Mapped[dict] = mapped_column(UniversalJSONB(), nullable=False, default=dict)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+
 # ── LangGraph Checkpoints ──
 
 

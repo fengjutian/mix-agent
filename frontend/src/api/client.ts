@@ -514,3 +514,32 @@ export function getRepoStatus(repo_path?: string) {
     is_clean: boolean;
   }>(`/review/status${qs}`);
 }
+
+// ── Global Settings ──
+
+export function getGlobalSettings() {
+  return request<{
+    data: {
+      token_burst_limit: number;
+      token_refill_rate: number;
+      sandbox_timeout: number;
+      sandbox_cpu_limit: number;
+      sandbox_memory_limit: string;
+      sqlguard_enabled: boolean;
+      sqlguard_block_ddl: boolean;
+      sqlguard_block_unconditional_dml: boolean;
+      agent_max_concurrency: number;
+    };
+    updated_at: string | null;
+  }>("/admin/settings");
+}
+
+export function updateGlobalSettings(updates: Record<string, any>) {
+  return request<{ ok?: boolean; error?: string; data?: any; updated_at?: string }>(
+    "/admin/settings",
+    {
+      method: "PUT",
+      body: JSON.stringify(updates),
+    }
+  );
+}

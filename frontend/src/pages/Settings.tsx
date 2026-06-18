@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { getCostOverview, getCostBreakdown } from "../api/client";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getCostOverview, getCostBreakdown, getGlobalSettings, updateGlobalSettings } from "../api/client";
 import { useAuthStore } from "../stores/auth";
 
 export default function SettingsPage() {
@@ -16,6 +16,9 @@ export default function SettingsPage() {
 
       {/* ── Lock Screen Password ── */}
       <LockPasswordSection />
+
+      {/* ── Global Application Settings ── */}
+      <GlobalSettingsSection />
 
       <h1 style={{ marginTop: 40 }}>成本概览</h1>
 
@@ -302,6 +305,213 @@ function LockPasswordSection() {
             reset();
           }}
         />
+      )}
+    </div>
+  );
+}
+
+// ── Global Application Settings Section ──
+
+const SETTING_FIELDS: Array<{
+  key: string;
+  label: string;
+  hint: string;
+  type: "number" | "boolean" | "text";
+  min?: number;
+  step?: number;
+}> = [
+  { key: "token_burst_limit", label: "Token 突发限制", hint: "短时间允许的最大 token 消耗量", type: "number", min: 1000, step: 1000 },
+  { key: "token_refill_rate", label: "Token 补充速率", hint: "每秒补充的 token 数量", type: "number", min: 100, step: 100 },
+  { key: "sandbox_timeout", label: "沙箱超时 (秒)", hint: "Docker 沙箱执行超时时间", type: "number", min: 5, step: 5 },
+  { key: "sandbox_cpu_limit", label: "沙箱 CPU 限制", hint: "每个沙箱容器的 CPU 核数", type: "number", min: 0.5, step: 0.5 },
+  { key: "sandbox_memory_limit", label: "沙箱内存限制", hint: "例如 512m、1g", type: "text" },
+  { key: "sqlguard_enabled", label: "SQL 安全门禁", hint: "是否启用 SQL 安全检查", type: "boolean" },
+  { key: "sqlguard_block_ddl", label: "阻断 DDL", hint: "是否阻断数据定义语句（DROP/ALTER/TRUNCATE）", type: "boolean" },
+  { key: "sqlguard_block_unconditional_dml", label: "阻断无条件 DML", hint: "是否阻断无条件更新/删除", type: "boolean" },
+  { key: "agent_max_concurrency", label: "Agent 最大并发", hint: "同时运行的最大 Agent 任务数", type: "number", min: 1, step: 1 },
+];
+
+function GlobalSettingsSection() {
+  const queryClient = useQueryClient();
+  const settingsQ = useQuery({ queryKey: ["global-settings"], queryFn: getGlobalSettings });
+  const mutation = useMutation({
+    mutationFn: updateGlobalSettings,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["global-settings"] });
+    },
+  });
+
+  const [editValues, setEditValues] = useState<Record<string, any>>({});
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [error, setError] = useState("");
+
+  const data = settingsQ.data?.data;
+
+  const resetEdit = () => {
+    setEditValues({});
+    setEditingKey(null);
+    setError("");
+  };
+
+  const startEdit = (key: string) => {
+    if (data && (data as Record<string, any>)[key] !== undefined) {
+      setEditValues({ [key]: (data as Record<string, any>)[key] });
+      setEditingKey(key);
+      setError("");
+    }
+  };
+
+  const saveEdit = async () => {
+    if (!editingKey) return;
+    setError("");
+    try {
+      await mutation.mutateAsync(editValues);
+      resetEdit();
+    } catch (e: any) {
+      setError(e?.message ?? "保存失败");
+    }
+  };
+
+  const toggleBoolean = async (key: string, current: boolean) => {
+    setError("");
+    try {
+      await mutation.mutateAsync({ [key]: !current });
+    } catch (e: any) {
+      setError(e?.message ?? "保存失败");
+    }
+  };
+
+  return (
+    <div className="card" style={{ marginTop: 28 }}>
+      <div className="card__header">
+        <h2 style={{ margin: 0 }}>全局应用设置</h2>
+      </div>
+
+      {error && (
+        <div className="error-message" style={{ marginBottom: 16 }}>{error}</div>
+      )}
+
+      {settingsQ.isLoading && <div className="loading">加载设置中...</div>}
+      {settingsQ.error && <div className="error-message">{(settingsQ.error as Error).message}</div>}
+
+      {data && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          {SETTING_FIELDS.map((f) => {
+            const value = (data as Record<string, any>)[f.key];
+            const isEditing = editingKey === f.key;
+
+            if (f.type === "boolean") {
+              return (
+                <div
+                  key={f.key}
+                  className="settings-row"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "10px 0",
+                    borderTop: "1px solid var(--border-subtle)",
+                  }}
+                >
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: "0.9rem" }}>{f.label}</div>
+                    <div style={{ color: "var(--text-muted)", fontSize: "0.78rem" }}>{f.hint}</div>
+                  </div>
+                  <label className="toggle">
+                    <input
+                      type="checkbox"
+                      checked={!!value}
+                      onChange={() => toggleBoolean(f.key, !!value)}
+                      disabled={mutation.isPending}
+                    />
+                    <span className="toggle__slider" />
+                  </label>
+                </div>
+              );
+            }
+
+            // number / text
+            return (
+              <div
+                key={f.key}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "10px 0",
+                  borderTop: "1px solid var(--border-subtle)",
+                }}
+              >
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: "0.9rem" }}>{f.label}</div>
+                  <div style={{ color: "var(--text-muted)", fontSize: "0.78rem" }}>{f.hint}</div>
+                </div>
+
+                {isEditing ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <input
+                      className="form-input"
+                      style={{ width: 140, padding: "4px 8px", fontSize: "0.85rem" }}
+                      type={f.type === "number" ? "number" : "text"}
+                      min={f.min}
+                      step={f.step}
+                      value={editValues[f.key] ?? ""}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        setEditValues({
+                          [f.key]: f.type === "number" ? (raw === "" ? "" : Number(raw)) : raw,
+                        });
+                      }}
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") saveEdit();
+                        if (e.key === "Escape") resetEdit();
+                      }}
+                    />
+                    <button
+                      className="btn btn--primary btn--sm"
+                      onClick={saveEdit}
+                      disabled={mutation.isPending}
+                      style={{ padding: "4px 10px" }}
+                    >
+                      ✓
+                    </button>
+                    <button
+                      className="btn btn--ghost btn--sm"
+                      onClick={resetEdit}
+                      style={{ padding: "4px 10px" }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <code style={{ fontSize: "0.88rem" }}>
+                      {value ?? "—"}
+                    </code>
+                    <button
+                      className="btn btn--ghost btn--sm"
+                      onClick={() => startEdit(f.key)}
+                      style={{ padding: "2px 8px", fontSize: "0.75rem" }}
+                    >
+                      编辑
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {settingsQ.data?.updated_at && (
+        <div style={{
+          marginTop: 16,
+          color: "var(--text-muted)",
+          fontSize: "0.75rem",
+        }}>
+          最后更新: {new Date(settingsQ.data.updated_at).toLocaleString()}
+        </div>
       )}
     </div>
   );

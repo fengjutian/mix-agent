@@ -25,7 +25,8 @@ export default function KeysPage() {
       queryClient.invalidateQueries({ queryKey: ["keys"] });
       queryClient.invalidateQueries({ queryKey: ["models"] });
       setAddOpen(false);
-      setAddFeedback({ ok: true, msg: "密钥已保存" });
+      setEditingProvider(null);
+      setAddFeedback({ ok: true, msg: editingProvider ? "密钥已更新" : "密钥已保存" });
       setTimeout(() => setAddFeedback(null), 2500);
     },
   });
@@ -39,6 +40,7 @@ export default function KeysPage() {
   });
 
   const [addOpen, setAddOpen] = useState(false);
+  const [editingProvider, setEditingProvider] = useState<string | null>(null);
   const [addFeedback, setAddFeedback] = useState<{
     ok: boolean;
     msg: string;
@@ -54,10 +56,15 @@ export default function KeysPage() {
   if (!data) return null;
 
   const handleSave = () => {
-    if (!formProvider.trim() || !formKey.trim()) return;
+    const provider = formProvider.trim();
+    const key = formKey.trim();
+    if (!provider) return;
+    // 添加模式必须填密钥；编辑模式允许留空（仅更新 base_url / model）
+    if (!editingProvider && !key) return;
+    // 编辑模式下密钥留空则后端保留原值
     setMutation.mutate({
-      provider: formProvider.trim(),
-      api_key: formKey.trim(),
+      provider,
+      api_key: key,
       base_url: formBaseUrl.trim(),
       model: formModel.trim(),
     });
@@ -75,6 +82,21 @@ export default function KeysPage() {
     setFormBaseUrl("");
     setFormModel("");
     setShowKey(false);
+    setEditingProvider(null);
+  };
+
+  const startEdit = (k: {
+    provider: string;
+    base_url: string;
+    model: string;
+  }) => {
+    setFormProvider(k.provider);
+    setFormKey("");
+    setFormBaseUrl(k.base_url || "");
+    setFormModel(k.model || "");
+    setShowKey(false);
+    setEditingProvider(k.provider);
+    setAddOpen(true);
   };
 
   return (
@@ -167,6 +189,13 @@ export default function KeysPage() {
                 </span>
                 <button
                   className="btn btn--ghost btn--sm"
+                  style={{ padding: "2px 8px" }}
+                  onClick={() => startEdit(k)}
+                >
+                  编辑
+                </button>
+                <button
+                  className="btn btn--ghost btn--sm"
                   style={{ color: "var(--danger)", padding: "2px 8px" }}
                   onClick={() => handleDelete(k.provider)}
                   disabled={deleteMutation.isPending}
@@ -183,7 +212,9 @@ export default function KeysPage() {
       {addOpen && (
         <div className="card">
           <div className="card__header">
-            <h3 style={{ margin: 0 }}>添加 API 密钥</h3>
+            <h3 style={{ margin: 0 }}>
+              {editingProvider ? `编辑 API 密钥 — ${editingProvider}` : "添加 API 密钥"}
+            </h3>
           </div>
 
           {addFeedback && (
@@ -210,11 +241,14 @@ export default function KeysPage() {
               placeholder="e.g. openai, anthropic, minimax"
               value={formProvider}
               onChange={(e) => setFormProvider(e.target.value)}
+              disabled={!!editingProvider}
             />
           </div>
 
           <div className="form-group">
-            <label className="form-label">API 密钥 *</label>
+            <label className="form-label">
+              API 密钥{editingProvider ? "（留空则不修改）" : " *"}
+            </label>
             <div style={{ display: "flex", gap: 8 }}>
               <input
                 className="form-input"
@@ -269,6 +303,7 @@ export default function KeysPage() {
               onClick={() => {
                 setAddOpen(false);
                 setAddFeedback(null);
+                setEditingProvider(null);
               }}
             >
               取消
@@ -279,10 +314,14 @@ export default function KeysPage() {
               disabled={
                 setMutation.isPending ||
                 !formProvider.trim() ||
-                !formKey.trim()
+                (!editingProvider && !formKey.trim())
               }
             >
-              {setMutation.isPending ? "保存中…" : "保存密钥"}
+              {setMutation.isPending
+                ? "保存中…"
+                : editingProvider
+                  ? "更新密钥"
+                  : "保存密钥"}
             </button>
           </div>
         </div>

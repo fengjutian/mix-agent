@@ -360,3 +360,40 @@ async def test_mcp_server(name: str):
         ],
         "error": result.error,
     }
+
+
+# ── Global Settings ──
+
+from mix_agent.services.settings_store import settings_store
+
+
+@router.get("/settings")
+def get_global_settings():
+    """获取全局应用设置。"""
+    return settings_store.get_all()
+
+
+class UpdateSettingsBody(BaseModel):
+    """可选的增量更新字段。"""
+    token_burst_limit: int | None = None
+    token_refill_rate: int | None = None
+    sandbox_timeout: int | None = None
+    sandbox_cpu_limit: float | None = None
+    sandbox_memory_limit: str | None = None
+    sqlguard_enabled: bool | None = None
+    sqlguard_block_ddl: bool | None = None
+    sqlguard_block_unconditional_dml: bool | None = None
+    agent_max_concurrency: int | None = None
+
+
+@router.put("/settings")
+def update_global_settings(body: UpdateSettingsBody):
+    """更新全局应用设置（部分更新，未传字段保持原值）。
+
+    Example: PUT /admin/settings
+    {"sandbox_timeout": 60, "sqlguard_enabled": false}
+    """
+    updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not updates:
+        return {"ok": False, "error": "No fields to update."}
+    return settings_store.update(updates)

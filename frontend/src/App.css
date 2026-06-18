@@ -201,9 +201,10 @@
 /* Sidebar itself — scrollable panel area */
 
 .sidebar {
+  display: flex;
+  flex-direction: column;
   flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
   min-height: 0;
 }
 
@@ -212,7 +213,22 @@
 .sidebar-panel {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Route-dependent top panel — fills available space, scrolls if needed */
+.sidebar-panel--main {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+/* Settings summary — pinned to sidebar bottom */
+.sidebar-panel--settings {
+  flex: 0 0 auto;
+  border-top: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.015);
 }
 
 .sidebar-panel__header {
@@ -237,6 +253,8 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .sidebar-section-label {

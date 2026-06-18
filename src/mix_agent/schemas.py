@@ -209,3 +209,34 @@ class ReviewFileView(BaseModel):
     revision: str = "HEAD"
     line_start: int | None = None
     line_end: int | None = None
+
+
+# ──────────── 全局应用设置 ────────────
+
+
+class GlobalSettingsSchema(BaseModel):
+    """全局应用设置 — 所有可配置项。"""
+
+    # Token / 限流
+    token_burst_limit: int = 100000
+    token_refill_rate: int = 10000
+
+    # 沙箱
+    sandbox_timeout: int = 30
+    sandbox_cpu_limit: float = 2.0
+    sandbox_memory_limit: str = "512m"
+
+    # SQL 安全门禁
+    sqlguard_enabled: bool = True
+    sqlguard_block_ddl: bool = True
+    sqlguard_block_unconditional_dml: bool = True
+
+    # Agent
+    agent_max_concurrency: int = 5
+
+
+class GlobalSettingsResponse(BaseModel):
+    """设置项响应。"""
+
+    data: GlobalSettingsSchema
+    updated_at: str | None = None
