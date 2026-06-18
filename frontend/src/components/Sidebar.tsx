@@ -1,6 +1,6 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { getPendingApprovals, getCostOverview } from "../api/client";
+import { getPendingApprovals, getCostOverview, getModels } from "../api/client";
 
 /* ── Tasks Panel ── */
 
