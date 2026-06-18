@@ -14,6 +14,7 @@ export default function HomePage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setResult(null);
     try {
       const data = await createTask({
         description: desc || `Scan ${base}..${target}`,
@@ -31,43 +32,68 @@ export default function HomePage() {
   };
 
   return (
-    <div style={{ maxWidth: 600, margin: "40px auto", padding: 24 }}>
+    <div>
       <h1>New Audit Task</h1>
-      <form onSubmit={handleSubmit}>
-        <div style={{ marginBottom: 12 }}>
-          <label>Repository Path</label>
-          <input value={repo} onChange={(e) => setRepo(e.target.value)}
-            style={{ width: "100%", padding: 8, marginTop: 4 }} />
-        </div>
-        <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
-          <div style={{ flex: 1 }}>
-            <label>Target Branch</label>
-            <input value={target} onChange={(e) => setTarget(e.target.value)}
-              style={{ width: "100%", padding: 8, marginTop: 4 }} />
+
+      <div className="card">
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label className="form-label">Repository Path</label>
+            <input
+              className="form-input"
+              value={repo}
+              onChange={(e) => setRepo(e.target.value)}
+            />
           </div>
-          <div style={{ flex: 1 }}>
-            <label>Base Branch</label>
-            <input value={base} onChange={(e) => setBase(e.target.value)}
-              style={{ width: "100%", padding: 8, marginTop: 4 }} />
+
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label">Target Branch</label>
+              <input
+                className="form-input"
+                value={target}
+                onChange={(e) => setTarget(e.target.value)}
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Base Branch</label>
+              <input
+                className="form-input"
+                value={base}
+                onChange={(e) => setBase(e.target.value)}
+              />
+            </div>
           </div>
-        </div>
-        <div style={{ marginBottom: 12 }}>
-          <label>Description (optional)</label>
-          <input value={desc} onChange={(e) => setDesc(e.target.value)}
-            placeholder="e.g. Check user module SQL security"
-            style={{ width: "100%", padding: 8, marginTop: 4 }} />
-        </div>
-        <button type="submit" disabled={loading}
-          style={{ width: "100%", padding: 10, fontSize: 16 }}>
-          {loading ? "Scanning..." : "Start Scan"}
-        </button>
-      </form>
+
+          <div className="form-group">
+            <label className="form-label">Description <span style={{ fontWeight: 400, color: "var(--text-muted)" }}>(optional)</span></label>
+            <input
+              className="form-input"
+              value={desc}
+              onChange={(e) => setDesc(e.target.value)}
+              placeholder="e.g. Check user module SQL security"
+            />
+          </div>
+
+          <button
+            type="submit"
+            className="btn btn--primary btn--lg btn--block"
+            disabled={loading}
+          >
+            {loading ? "Scanning..." : "Start Scan"}
+          </button>
+        </form>
+      </div>
+
       {result && (
-        <div style={{ marginTop: 16, padding: 12, background: "#f0f0f0", borderRadius: 8 }}>
+        <div style={{ marginTop: 20 }}>
           {result.error ? (
-            <p style={{ color: "red" }}>{result.error}</p>
+            <div className="result-banner result-banner--error">{result.error}</div>
           ) : (
-            <p>Task created: <strong>{result.task_id}</strong> — Status: {result.status}</p>
+            <div className="result-banner result-banner--success">
+              Task created: <strong>{result.task_id}</strong> — Status:{" "}
+              <span className="badge badge--info">{result.status}</span>
+            </div>
           )}
         </div>
       )}

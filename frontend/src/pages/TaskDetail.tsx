@@ -2,6 +2,19 @@ import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { getTask, getFindings, getReport } from "../api/client";
 
+const riskLabel: Record<string, { label: string; badge: string }> = {
+  danger:  { label: "DANGER",  badge: "badge--danger" },
+  warning: { label: "WARNING", badge: "badge--warning" },
+  info:    { label: "INFO",    badge: "badge--info" },
+};
+
+const statusBadge: Record<string, string> = {
+  completed: "badge--success",
+  failed:    "badge--danger",
+  running:   "badge--info",
+  pending:   "badge--warning",
+};
+
 export default function TaskDetailPage() {
   const { id } = useParams<{ id: string }>();
 
@@ -9,46 +22,88 @@ export default function TaskDetailPage() {
   const findingsQ = useQuery({ queryKey: ["findings", id], queryFn: () => getFindings(id!) });
   const reportQ = useQuery({ queryKey: ["report", id], queryFn: () => getReport(id!) });
 
-  if (taskQ.isLoading) return <p>Loading...</p>;
-  if (taskQ.error) return <p style={{ color: "red" }}>{(taskQ.error as Error).message}</p>;
+  if (taskQ.isLoading) return <div className="loading">Loading task...</div>;
+  if (taskQ.error) return <div className="error-message">{(taskQ.error as Error).message}</div>;
 
   const task = taskQ.data;
   const findings = findingsQ.data?.findings || [];
   const report = reportQ.data;
 
   return (
-    <div style={{ maxWidth: 800, margin: "40px auto", padding: 24 }}>
+    <div>
       <h1>Task Detail</h1>
-      <div style={{ background: "#f5f5f5", padding: 16, borderRadius: 8, marginBottom: 16 }}>
-        <p><strong>ID:</strong> {task?.task_id}</p>
-        <p><strong>Status:</strong> <span style={{
-          color: task?.status === "completed" ? "green" :
-                 task?.status === "failed" ? "red" : "orange"
-        }}>{task?.status}</span></p>
-        <p><strong>Branch:</strong> {task?.base_branch} → {task?.target_branch}</p>
+
+      {/* ── Task Info Card ── */}
+      <div className="card">
+        <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "8px 20px", fontSize: "0.92rem" }}>
+          <span style={{ color: "var(--text-muted)" }}>ID</span>
+          <span style={{ fontFamily: "var(--mono)", color: "var(--text-heading)" }}>{task?.task_id}</span>
+
+          <span style={{ color: "var(--text-muted)" }}>Status</span>
+          <span>
+            <span className={`badge ${statusBadge[task?.status ?? ""] || "badge--info"}`}>
+              {task?.status}
+            </span>
+          </span>
+
+          <span style={{ color: "var(--text-muted)" }}>Branch</span>
+          <span style={{ fontFamily: "var(--mono)", fontSize: "0.85rem" }}>
+            {task?.base_branch} → {task?.target_branch}
+          </span>
+        </div>
       </div>
 
-      <h2>Findings ({findingsQ.data?.total || 0})</h2>
-      {findings.map((f: any, i: number) => (
-        <div key={i} style={{
-          padding: 12, marginBottom: 8, borderRadius: 6,
-          borderLeft: `4px solid ${f.risk_level === "danger" ? "red" : f.risk_level === "warning" ? "orange" : "green"}`,
-          background: "#fafafa"
-        }}>
-          <strong>[{f.risk_level?.toUpperCase()}]</strong> {f.agent}/{f.finding_type}
-          <p style={{ margin: "4px 0 0", color: "#555" }}>{f.description}</p>
-          {f.file_path && <small>{f.file_path}:{f.line_number}</small>}
-        </div>
-      ))}
-      {findings.length === 0 && <p>No findings yet.</p>}
+      {/* ── Findings ── */}
+      <h2 style={{ marginTop: 32 }}>
+        Findings
+        {findingsQ.data?.total != null && (
+          <span style={{
+            marginLeft: 10,
+            fontSize: "0.85rem",
+            color: "var(--text-muted)",
+            fontWeight: 400,
+          }}>
+            ({findingsQ.data.total})
+          </span>
+        )}
+      </h2>
 
-      {report && (
-        <div style={{ marginTop: 24 }}>
-          <h2>Report</h2>
-          <pre style={{ background: "#f5f5f5", padding: 16, borderRadius: 8, overflow: "auto", maxHeight: 400 }}>
-            {JSON.stringify(report, null, 2)}
-          </pre>
+      {findingsQ.isLoading && <div className="loading">Loading findings...</div>}
+
+      {!findingsQ.isLoading && findings.length === 0 && (
+        <div className="empty-state">
+          <div className="empty-state__icon">🔍</div>
+          <p>No findings yet.</p>
         </div>
+      )}
+
+      {findings.map((f: any, i: number) => {
+        const risk = riskLabel[f.risk_level] || riskLabel.info;
+        return (
+          <div key={i} className="finding-item" data-risk={f.risk_level}>
+            <div className="finding-item__header">
+              <span className={`badge ${risk.badge}`}>{risk.label}</span>
+              <span style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
+                {f.agent}/{f.finding_type}
+              </span>
+            </div>
+            <p className="finding-item__desc">{f.description}</p>
+            {f.file_path && (
+              <span className="finding-item__file">
+                {f.file_path}{f.line_number ? `:${f.line_number}` : ""}
+              </span>
+            )}
+          </div>
+        );
+      })}
+
+      {/* ── Report ── */}
+      {report && (
+        <>
+          <div className="divider" />
+          <h2>Report</h2>
+          <pre style={{ maxHeight: 420 }}>{JSON.stringify(report, null, 2)}</pre>
+        </>
       )}
     </div>
   );

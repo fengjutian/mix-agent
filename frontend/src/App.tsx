@@ -1,4 +1,4 @@
-import { HashRouter, Routes, Route, Link, Navigate } from "react-router-dom";
+import { HashRouter, Routes, Route, Link, Navigate, useLocation } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useAuthStore } from "./stores/auth";
 import LoginPage from "./pages/Login";
@@ -9,31 +9,47 @@ import SettingsPage from "./pages/Settings";
 
 const queryClient = new QueryClient();
 
+function NavLink({ to, children }: { to: string; children: React.ReactNode }) {
+  const location = useLocation();
+  const isActive = location.pathname === to;
+  return (
+    <Link to={to} className={isActive ? "active" : ""}>
+      {children}
+    </Link>
+  );
+}
+
 function Layout({ children }: { children: React.ReactNode }) {
   const { isLoggedIn, logout } = useAuthStore();
 
   return (
-    <div>
-      <nav style={{
-        display: "flex", gap: 16, padding: "12px 24px",
-        background: "#1a1a2e", color: "#fff", alignItems: "center"
-      }}>
-        <Link to="/" style={{ color: "#fff", fontWeight: "bold", fontSize: 18, textDecoration: "none" }}>
+    <div className="page-shell">
+      <header className="site-header">
+        <Link to="/" className="site-header__brand">
+          <span className="site-header__brand-dot" />
           mix-agent
         </Link>
-        <Link to="/" style={{ color: "#ccc", textDecoration: "none" }}>Home</Link>
-        <Link to="/approvals" style={{ color: "#ccc", textDecoration: "none" }}>Approvals</Link>
-        <Link to="/settings" style={{ color: "#ccc", textDecoration: "none" }}>Cost</Link>
-        <div style={{ flex: 1 }} />
-        {isLoggedIn ? (
-          <button onClick={logout} style={{ background: "transparent", color: "#fff", border: "1px solid #fff", padding: "4px 12px", borderRadius: 4 }}>
-            Logout
-          </button>
-        ) : (
-          <Link to="/login" style={{ color: "#fff" }}>Login</Link>
-        )}
-      </nav>
-      <main>{children}</main>
+
+        <nav className="site-header__nav">
+          <NavLink to="/">Home</NavLink>
+          <NavLink to="/approvals">Approvals</NavLink>
+          <NavLink to="/settings">Cost</NavLink>
+        </nav>
+
+        <div className="site-header__actions">
+          {isLoggedIn ? (
+            <button onClick={logout} className="btn btn--secondary btn--sm">
+              Logout
+            </button>
+          ) : (
+            <Link to="/login" className="btn btn--secondary btn--sm">
+              Login
+            </Link>
+          )}
+        </div>
+      </header>
+
+      <main className="page-content">{children}</main>
     </div>
   );
 }

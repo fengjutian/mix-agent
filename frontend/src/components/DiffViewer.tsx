@@ -1,5 +1,5 @@
-import { useRef, useState } from "react";
-import Editor from "@monaco-editor/react";
+import { useState } from "react";
+import { DiffEditor } from "@monaco-editor/react";
 
 interface DiffViewerProps {
   original: string;
@@ -22,44 +22,40 @@ export default function DiffViewer({
   };
 
   return (
-    <div style={{ marginBottom: 16 }}>
+    <div className="card" style={{ padding: 0, overflow: "hidden" }}>
       <div style={{
-        display: "flex", justifyContent: "space-between", alignItems: "center",
-        marginBottom: 8
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        padding: "12px 16px",
+        borderBottom: "1px solid var(--border)",
       }}>
-        <h4 style={{ margin: 0 }}>Diff View</h4>
+        <h4 style={{ margin: 0, fontSize: "0.92rem" }}>Diff View</h4>
         {onApply && (
           <button
             onClick={handleApply}
             disabled={applied}
-            style={{
-              padding: "6px 16px",
-              background: applied ? "#ccc" : "#4caf50",
-              color: "#fff",
-              border: "none",
-              borderRadius: 4,
-              cursor: applied ? "default" : "pointer",
-            }}
+            className={applied ? "btn btn--secondary btn--sm" : "btn btn--primary btn--sm"}
           >
             {applied ? "Applied ✓" : "Apply Fix"}
           </button>
         )}
       </div>
-      <div style={{ border: "1px solid #ddd", borderRadius: 4, overflow: "hidden" }}>
-        <Editor
-          height="300px"
-          language={language}
-          original={original}
-          modified={modified}
-          theme="vs-dark"
-          options={{
-            readOnly: true,
-            renderSideBySide: true,
-            minimap: { enabled: false },
-            fontSize: 13,
-          }}
-        />
-      </div>
+      <DiffEditor
+        height="320px"
+        language={language}
+        original={original}
+        modified={modified}
+        theme="vs-dark"
+        options={{
+          readOnly: true,
+          minimap: { enabled: false },
+          fontSize: 13,
+          lineNumbers: "on" as any,
+          scrollBeyondLastLine: false,
+          renderSideBySide: true,
+        } as any}
+      />
     </div>
   );
 }

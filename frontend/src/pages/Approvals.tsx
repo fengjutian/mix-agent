@@ -15,33 +15,53 @@ export default function ApprovalsPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["approvals"] }),
   });
 
-  if (isLoading) return <p>Loading...</p>;
-  if (error) return <p style={{ color: "red" }}>{(error as Error).message}</p>;
+  if (isLoading) return <div className="loading">Loading approvals...</div>;
+  if (error) return <div className="error-message">{(error as Error).message}</div>;
 
   const items = data?.items || [];
 
   return (
-    <div style={{ maxWidth: 700, margin: "40px auto", padding: 24 }}>
-      <h1>Pending Approvals ({data?.total || 0})</h1>
-      {items.length === 0 && <p>No pending approvals.</p>}
+    <div>
+      <h1>
+        Pending Approvals
+        {data?.total != null && (
+          <span style={{
+            marginLeft: 10,
+            fontSize: "0.85rem",
+            color: "var(--text-muted)",
+            fontWeight: 400,
+          }}>
+            ({data.total})
+          </span>
+        )}
+      </h1>
+
+      {items.length === 0 && (
+        <div className="empty-state">
+          <div className="empty-state__icon">✅</div>
+          <p>No pending approvals.</p>
+        </div>
+      )}
+
       {items.map((item: any, i: number) => (
-        <div key={i} style={{
-          padding: 16, marginBottom: 12, borderRadius: 8,
-          background: "#fff3e0", border: "1px solid #ff9800"
-        }}>
-          <p><strong>Task:</strong> {item.task_id}</p>
-          <p><strong>Node:</strong> {item.node_name}</p>
-          <p>{item.prompt}</p>
-          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+        <div key={i} className="approval-card">
+          <div className="approval-card__meta">
+            <span><strong>Task:</strong> <code>{item.task_id?.slice(0, 14)}...</code></span>
+            <span><strong>Node:</strong> {item.node_name}</span>
+          </div>
+          <p className="approval-card__prompt">{item.prompt}</p>
+          <div className="approval-card__actions">
             <button
+              className="btn btn--primary btn--sm"
               onClick={() => mutation.mutate({ taskId: item.task_id, decision: "approve" })}
-              style={{ padding: "8px 20px", background: "#4caf50", color: "#fff", border: "none", borderRadius: 4 }}
+              disabled={mutation.isPending}
             >
               Approve
             </button>
             <button
+              className="btn btn--danger btn--sm"
               onClick={() => mutation.mutate({ taskId: item.task_id, decision: "reject" })}
-              style={{ padding: "8px 20px", background: "#f44336", color: "#fff", border: "none", borderRadius: 4 }}
+              disabled={mutation.isPending}
             >
               Reject
             </button>
