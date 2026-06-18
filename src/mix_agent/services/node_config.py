@@ -14,6 +14,7 @@ DEFAULT_NODE_PROVIDERS: dict[str, str] = {
     "orchestrator":       "deepseek",
     "code_review":        "deepseek",
     "sql_risk_explain":   "deepseek",
+    "review":             "deepseek",
     "summary":            "deepseek",
     "api_path":           "deepseek",
     "auto_fix":           "deepseek",

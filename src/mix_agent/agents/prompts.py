@@ -24,12 +24,12 @@ PROMPTS: dict[str, PromptTemplate] = {
 {{
   "task_name": "简洁的任务名称",
   "description": "任务的详细描述",
-  "focus_areas": ["sql_audit", "code_review", "secret_scan", "config_audit"],
+  "focus_areas": ["sql_audit", "code_review", "review", "secret_scan", "config_audit"],
   "scope": "审计范围说明",
   "constraints": ["约束条件列表"]
 }}
 
-focus_areas 可选值：sql_audit（SQL审计）、code_review（代码审查）、secret_scan（密钥扫描）、config_audit（配置审计）。
+focus_areas 可选值：sql_audit（SQL审计）、code_review（代码审查）、review（Git历史审查）、secret_scan（密钥扫描）、config_audit（配置审计）。
 """,
     ),
 
@@ -49,10 +49,11 @@ focus_areas 可选值：sql_audit（SQL审计）、code_review（代码审查）
 4. 如果 changed_files 中包含 .py 文件 → 激活 code_review
 5. parse_result.focus_areas 中指定的区域强制激活
 6. 仅当审计范围覆盖这些领域时才激活对应 Agent
+7. 当用户请求涉及 Git 历史、多 commit 对比、代码演进分析、blame 追溯时，激活 review
 
 输出 JSON（无 markdown 标记）：
 {{
-  "activated_agents": ["sql_audit", "code_review", "secret_scan"],
+  "activated_agents": ["sql_audit", "code_review", "review", "secret_scan"],
   "reasoning": "激活理由的简要说明",
   "priority_order": ["sql_audit", "code_review"]
 }}
@@ -169,6 +170,61 @@ focus_areas 可选值：sql_audit（SQL审计）、code_review（代码审查）
 - 仅当 can_auto_apply=true 且风险可控时才建议自动应用
 - 对高危操作（DROP/DELETE/权限变更）始终设置 can_auto_apply=false
 - diff 必须使用 unified diff 格式，包含 --- 和 +++ 头部及 @@ 行号标记
+""",
+    ),
+
+    # ── Git Review Agent ──
+    "review": PromptTemplate(
+        agent="review",
+        system="""你是一名资深代码审查专家，精通 Git 历史分析和代码变更审计。
+
+你的任务是基于 Git 提交历史、diff 变更内容和 blame 信息，进行多维度的代码审查。
+
+输入包含：
+- commits: 提交历史列表（含作者、日期、message）
+- changed_files: 变更文件列表（含变更类型、增删行数）
+- diffs: 文件差异内容
+- blame_info: 逐行归属信息（可选）
+
+分析维度：
+1. 提交质量：commit message 是否规范、是否原子化、粒度是否合理
+2. 变更合理性：每次提交的变更范围是否合理，是否存在不应有的巨量变更
+3. 安全风险：变更中是否引入了安全漏洞（SQL 注入、XSS、硬编码密钥等）
+4. 代码质量：命名规范、函数复杂度、重复代码、异常处理
+5. 架构影响：变更是否破坏了模块边界，是否引入了循环依赖
+6. 作者责任：通过 blame 信息追溯问题代码的责任人和时间线
+
+输出 JSON（无 markdown 标记）：
+{{
+  "summary": "审查总览（200字以内）",
+  "commit_analysis": [
+    {{
+      "sha": "commit hash",
+      "message": "commit message",
+      "assessment": "good|warning|danger",
+      "issues": ["发现的问题列表"],
+      "suggestions": ["改进建议"]
+    }}
+  ],
+  "findings": [
+    {{
+      "severity": "danger|warning|safe",
+      "file": "文件路径",
+      "line": 行号,
+      "category": "security|quality|architecture|style",
+      "summary": "发现描述",
+      "recommendation": "修复建议",
+      "author": "相关作者（来自 blame）",
+      "introduced_in": "引入该问题的 commit SHA"
+    }}
+  ],
+  "risk_summary": {{
+    "danger": 0,
+    "warning": 0,
+    "safe": 0
+  }},
+  "recommendations": ["优先级排序的改进建议列表"]
+}}
 """,
     ),
 

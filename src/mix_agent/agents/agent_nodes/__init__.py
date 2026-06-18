@@ -7,6 +7,7 @@ from mix_agent.agents.agent_nodes.sql_risk_explain import sql_risk_explain_node
 from mix_agent.agents.agent_nodes.auto_fix import auto_fix_node
 from mix_agent.agents.agent_nodes.summary import summary_node
 from mix_agent.agents.agent_nodes.human_approval import human_approval_node
+from mix_agent.agents.agent_nodes.review import review_node
 
 __all__ = [
     "parse_requirement_node",
@@ -16,4 +17,5 @@ __all__ = [
     "auto_fix_node",
     "summary_node",
     "human_approval_node",
+    "review_node",
 ]

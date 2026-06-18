@@ -79,7 +79,7 @@ class TableExtractor:
             if self._should_skip(py_file):
                 continue
             try:
-                source = py_file.read_text(encoding="utf-8")
+                source = self._read_file(py_file)
                 tree = ast.parse(source, filename=str(py_file))
                 self._scan_file(tree, str(py_file))
             except (SyntaxError, OSError):
@@ -107,7 +107,7 @@ class TableExtractor:
             return []
 
         try:
-            source = path.read_text(encoding="utf-8")
+            source = self._read_file(path)
             tree = ast.parse(source, filename=str(path))
         except (SyntaxError, OSError):
             return []
@@ -142,7 +142,7 @@ class TableExtractor:
             if self._should_skip(py_file):
                 continue
             try:
-                source = py_file.read_text(encoding="utf-8")
+                source = self._read_file(py_file)
                 tree = ast.parse(source, filename=str(py_file))
                 for node in ast.walk(tree):
                     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -167,6 +167,14 @@ class TableExtractor:
         return list(self._tables.values())
 
     # ── 内部实现 ──
+
+    @staticmethod
+    def _read_file(path: Path) -> str:
+        """读取文件，自动处理编码问题（UTF-8 → Latin-1 回退）。"""
+        try:
+            return path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            return path.read_text(encoding="latin-1")
 
     def _should_skip(self, path: Path) -> bool:
         parts = path.parts
@@ -213,14 +221,14 @@ class TableExtractor:
             # 提取列定义
             elif isinstance(item, ast.AnnAssign):
                 if isinstance(item.target, ast.Name):
-                    col_name = item.target.name
+                    col_name = item.target.id
                     if not col_name.startswith("_") and col_name not in ("id",):
                         columns.append(col_name)
                 # 检查是否有 relationship 调用
                 if item.value and isinstance(item.value, ast.Call):
                     if self._name_of(item.value.func) == "relationship":
                         if isinstance(item.target, ast.Name):
-                            relationships.append(item.target.name)
+                            relationships.append(item.target.id)
 
         if not table_name:
             return None

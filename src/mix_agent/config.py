@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     SQLGUARD_BLOCK_UNCONDITIONAL_DML: bool = True
 
     # ---------- CORS ----------
-    CORS_ORIGINS: list[str] = ["*"]
+    CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:8000"]
 
     # ---------- Token 限流 ----------
     TOKEN_BURST_LIMIT: int = 100_000

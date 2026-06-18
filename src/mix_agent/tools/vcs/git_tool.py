@@ -283,7 +283,7 @@ class GitTool:
         """
         self._ensure_repo()
 
-        args = ["log", "--format=%H%x00%h%x00%an%x00%ae%x00%aI%x00%s%x00%D",
+        args = ["log", "--format=%H|%h|%an|%ae|%aI|%s|%D",
                 f"-{max_count}", f"--skip={skip}"]
         if file_path:
             args.append("--")
@@ -312,7 +312,7 @@ class GitTool:
 
         # 获取基本信息
         info_output = self._run_git([
-            "log", "--format=%H%x00%h%x00%an%x00%ae%x00%aI%x00%s%x00%D",
+            "log", "--format=%H|%h|%an|%ae|%aI|%s|%D",
             "-1", sha,
         ])
         commits = self._parse_log(info_output)
@@ -345,8 +345,14 @@ class GitTool:
     # Branches
     # ═══════════════════════════════════════════════════════════
 
-    def list_branches(self, include_remote: bool = False) -> list[BranchInfo]:
-        """列出所有分支（含详细信息）。
+    def list_branches(self) -> list[str]:
+        """列出所有本地分支名。"""
+        self._ensure_repo()
+        output = self._run_git(["branch", "--format=%(refname:short)"])
+        return [line.strip() for line in output.splitlines() if line.strip()]
+
+    def list_branches_detailed(self, include_remote: bool = False) -> list[BranchInfo]:
+        """列出所有分支（含详细信息和最后提交）。
 
         Args:
             include_remote: 是否包含远程分支
@@ -356,7 +362,7 @@ class GitTool:
         """
         self._ensure_repo()
 
-        format_str = "%(refname:short)%x00%(objectname)%x00%(objectname:short)%x00%(committerdate:iso)%x00%(subject)"
+        format_str = "%(refname:short)|%(objectname)|%(objectname:short)|%(committerdate:iso)|%(subject)"
         args = ["branch", f"--format={format_str}"]
         if include_remote:
             args.append("-a")
@@ -367,7 +373,7 @@ class GitTool:
         for line in output.splitlines():
             if not line.strip():
                 continue
-            parts = line.split("\x00")
+            parts = line.split("|")
             if len(parts) < 5:
                 continue
             name = parts[0].strip()
@@ -486,12 +492,12 @@ class GitTool:
     def stash_list(self) -> list[StashInfo]:
         """列出所有 stash。"""
         self._ensure_repo()
-        output = self._run_git(["stash", "list", "--format=%gd%x00%gs%x00%aI"])
+        output = self._run_git(["stash", "list", "--format=%gd|%gs|%aI"])
         stashes: list[StashInfo] = []
         for line in output.splitlines():
             if not line.strip():
                 continue
-            parts = line.split("\x00")
+            parts = line.split("|")
             if len(parts) < 3:
                 continue
             # parts[0] e.g. "stash@{0}"
@@ -539,13 +545,13 @@ class GitTool:
     def tag_list(self) -> list[TagInfo]:
         """列出所有 tag。"""
         self._ensure_repo()
-        format_str = "%(refname:short)%x00%(objectname)%x00%(objectname:short)%x00%(subject)%x00%(creatordate:iso)"
+        format_str = "%(refname:short)|%(objectname)|%(objectname:short)|%(subject)|%(creatordate:iso)"
         output = self._run_git(["tag", f"--format={format_str}", "--sort=-creatordate"])
         tags: list[TagInfo] = []
         for line in output.splitlines():
             if not line.strip():
                 continue
-            parts = line.split("\x00")
+            parts = line.split("|")
             if len(parts) < 5:
                 continue
             tags.append(TagInfo(
@@ -718,7 +724,7 @@ class GitTool:
         for line in output.splitlines():
             if not line.strip():
                 continue
-            parts = line.split("\x00")
+            parts = line.split("|")
             if len(parts) < 6:
                 continue
             refs = [r.strip() for r in parts[6].split(",") if r.strip()] if len(parts) > 6 else []

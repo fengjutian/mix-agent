@@ -102,8 +102,8 @@ def build_swimlane(
                 if prev != "...":
                     edge_set.add((_sanitize_id(prev), node_id))
 
-        # 如果有 DB 操作，连接到相关的表节点
-        if chain.reaches_db and table_usages:
+        # 如果有表引用，连接到相关的表节点
+        if table_usages:
             last_func = next(
                 (f for f in reversed(chain.chain) if f != "..."), None
             )
@@ -111,7 +111,8 @@ def build_swimlane(
                 last_id = _sanitize_id(last_func)
                 for tu in table_usages:
                     tbl_id = f'TBL_{_sanitize_id(tu.table_name)}'
-                    lanes["db"].append(f'{tbl_id}["📋 {tu.table_name}\n({tu.operation})"]')
+                    if tbl_id not in str(lanes.get("db", [])):
+                        lanes["db"].append(f'{tbl_id}["📋 {tu.table_name}\n({tu.operation})"]')
                     edge_set.add((last_id, tbl_id))
 
     # 如果没有从调用链发现表，但 table_usages 非空，添加孤立表节点

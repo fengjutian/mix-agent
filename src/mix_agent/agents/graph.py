@@ -13,6 +13,7 @@ from mix_agent.agents.agent_nodes import (
     auto_fix_node,
     summary_node,
     human_approval_node,
+    review_node,
 )
 from mix_agent.schemas import AgentState, TaskStatus
 
@@ -25,6 +26,7 @@ def _route_after_orchestrator(state: AgentState) -> list[str]:
     route_map = {
         "sql_audit": "sql_risk_explain",
         "code_review": "code_review",
+        "review": "review",
         # secret_scan / config_audit / dependency_audit 可后续扩展
     }
 
@@ -62,6 +64,7 @@ def build_graph() -> StateGraph:
     workflow.add_node("sql_risk_explain", sql_risk_explain_node)
     workflow.add_node("auto_fix", auto_fix_node)
     workflow.add_node("human_approval", human_approval_node)
+    workflow.add_node("review", review_node)
     workflow.add_node("summary", summary_node)
 
     # 入口
@@ -69,8 +72,22 @@ def build_graph() -> StateGraph:
     workflow.add_edge("parse_requirement", "orchestrator")
 
     # 从 orchestrator 分发到各分析节点
-    # 简化：固定顺序执行 code_review → sql_risk_explain → summary
-    workflow.add_edge("orchestrator", "code_review")
+    # 支持条件路由：orchestrator 决定激活哪些 agent
+    workflow.add_conditional_edges(
+        "orchestrator",
+        _route_after_orchestrator,
+        {
+            "code_review": "code_review",
+            "sql_risk_explain": "sql_risk_explain",
+            "review": "review",
+            "summary": "summary",
+        },
+    )
+
+    # review 节点结束后进入 summary
+    workflow.add_edge("review", "summary")
+
+    # code_review 完成后进入 sql_risk_explain
     workflow.add_edge("code_review", "sql_risk_explain")
 
     # SQL 审计后：条件路由 → auto_fix 或 human_approval

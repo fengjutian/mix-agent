@@ -118,7 +118,7 @@ class CallChainTracer:
             if "__pycache__" in str(py_file) or "node_modules" in str(py_file):
                 continue
             try:
-                source = py_file.read_text(encoding="utf-8")
+                source = self._read_file(py_file)
                 tree = ast.parse(source, filename=str(py_file))
                 self._scan_file(tree, str(py_file))
             except (SyntaxError, OSError):
@@ -149,6 +149,14 @@ class CallChainTracer:
                         called = self._name_of(child.func)
                         if called and not called.startswith("_"):
                             self._call_graph[name].add(called)
+
+    @staticmethod
+    def _read_file(path: Path) -> str:
+        """读取文件，自动处理编码问题（UTF-8 → Latin-1 回退）。"""
+        try:
+            return path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            return path.read_text(encoding="latin-1")
 
     def _classify_function(self, name: str, file_path: str) -> str:
         """根据函数名和文件路径分类为 route/service/dao/db/function。"""
@@ -183,6 +191,9 @@ class CallChainTracer:
 
         callees = self._call_graph.get(func_name, set())
         for callee in sorted(callees):
+            # 只追踪在项目中定义的函数（跳过内置函数和外部函数）
+            if callee not in self._func_locations:
+                continue
             sub_chain = self._trace_from(callee, visited.copy(), max_depth - 1)
             chain.extend(sub_chain)
             if len(chain) > 20:  # 截断

@@ -110,11 +110,6 @@ export default function App() {
               <ProtectedRoute><ApprovalsPage /></ProtectedRoute>
             </Layout>
           } />
-          <Route path="/settings" element={
-            <Layout>
-              <ProtectedRoute><SettingsPage /></ProtectedRoute>
-            </Layout>
-          } />
           <Route path="/models" element={
             <Layout>
               <ProtectedRoute><ModelsPage /></ProtectedRoute>
@@ -138,6 +133,11 @@ export default function App() {
           <Route path="/trace" element={
             <Layout>
               <ProtectedRoute><TracePage /></ProtectedRoute>
+            </Layout>
+          } />
+          <Route path="/settings" element={
+            <Layout>
+              <ProtectedRoute><SettingsPage /></ProtectedRoute>
             </Layout>
           } />
         </Routes>

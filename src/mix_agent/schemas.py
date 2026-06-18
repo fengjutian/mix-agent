@@ -173,7 +173,39 @@ class AgentState(BaseModel):
     sql_audit_result: dict[str, Any] = Field(default_factory=dict)
     auto_fix_result: dict[str, Any] = Field(default_factory=dict)
     summary_result: dict[str, Any] = Field(default_factory=dict)
+    review_result: dict[str, Any] = Field(default_factory=dict)
 
     # Phase 1 工具数据
     changed_files: list[dict[str, Any]] = Field(default_factory=list)
     ast_symbols: dict[str, Any] = Field(default_factory=dict)
+
+
+# ──────────── Review Module ────────────
+
+
+class ReviewRequest(BaseModel):
+    """代码审查请求 — 指定仓库、分支和提交范围。"""
+
+    repo_path: str = "."
+    target: str = "HEAD"
+    base: str = "main"
+    limit: int = Field(default=50, ge=1, le=500, description="最大提交数")
+    file_filter: str | None = None  # 可选：限定文件路径模式
+
+
+class ReviewCommitSelection(BaseModel):
+    """选中特定 commit 进行审查。"""
+
+    repo_path: str = "."
+    commit_sha: str
+    file_paths: list[str] | None = None  # 可选：指定要审查的文件
+
+
+class ReviewFileView(BaseModel):
+    """打开源文件查看。"""
+
+    repo_path: str = "."
+    file_path: str
+    revision: str = "HEAD"
+    line_start: int | None = None
+    line_end: int | None = None
