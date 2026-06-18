@@ -340,6 +340,7 @@ export default function Sidebar() {
     if (location.pathname.startsWith("/keys")) return <KeysPanel />;
     if (location.pathname.startsWith("/prompts")) return <PromptsPanel />;
     if (location.pathname.startsWith("/mcp")) return <MCPServersPanel />;
+    if (location.pathname.startsWith("/trace")) return <TasksPanel />;
     return <TasksPanel />;
   };
 

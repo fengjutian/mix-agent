@@ -10,6 +10,7 @@ from mix_agent.api.v1_agent import router as agent_router
 from mix_agent.api.v1_approvals import router as approvals_router
 from mix_agent.api.v1_auth import router as auth_router
 from mix_agent.api.v1_tasks import router as tasks_router
+from mix_agent.api.v1_analyzer import router as analyzer_router
 from mix_agent.config import settings
 
 
@@ -42,6 +43,7 @@ app.include_router(agent_router, prefix="/api/v1/agent", tags=["agent"])
 app.include_router(approvals_router, prefix="/api/v1/approvals", tags=["approvals"])
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(admin_router, prefix="/api/v1/admin", tags=["admin"])
+app.include_router(analyzer_router, prefix="/api/v1/analyzer", tags=["analyzer"])
 
 
 @app.get("/health")

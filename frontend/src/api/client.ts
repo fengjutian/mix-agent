@@ -314,3 +314,76 @@ export function deleteKey(provider: string) {
     body: JSON.stringify({ provider }),
   });
 }
+
+// ── Analyzer / 接口调用链分析 ──
+
+export function listRoutes() {
+  return request<{
+    ok: boolean;
+    routes: Array<{
+      method: string;
+      path: string;
+      full_path: string;
+      handler: string;
+      file_path: string;
+      line_number: number;
+      has_auth: boolean;
+      tags: string[];
+      summary: string;
+    }>;
+    total: number;
+  }>("/analyzer/routes");
+}
+
+export function traceInterface(method: string, path: string, sourceRoot: string = ".") {
+  return request<{
+    ok: boolean;
+    entry_point: string;
+    route_info: {
+      method: string;
+      path: string;
+      handler: string;
+      file_path: string;
+      line_number: number;
+      has_auth: boolean;
+      auth_deps: string[];
+      tags: string[];
+    } | null;
+    call_chain: Array<{
+      name: string;
+      kind: string;
+      file_path: string;
+      line_number: number;
+    }>;
+    tables: Array<{
+      table_name: string;
+      class_name: string | null;
+      operation: string;
+      location: string;
+      file_path: string;
+      line_number: number;
+    }>;
+    swimlane: string;
+    diagram_nodes: Array<{
+      id: string;
+      name: string;
+      kind: string;
+      file_path: string;
+      line_number: number;
+    }>;
+    diagram_edges: Array<{ from: string; to: string }>;
+    summary: string;
+    all_routes: Array<{
+      method: string;
+      path: string;
+      full_path: string;
+      handler: string;
+      file_path: string;
+      line_number: number;
+    }>;
+    error: string;
+  }>("/analyzer/trace", {
+    method: "POST",
+    body: JSON.stringify({ method, path, source_root: sourceRoot }),
+  });
+}

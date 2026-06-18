@@ -13,6 +13,8 @@ import SettingsPage from "./pages/Settings";
 import PromptsPage from "./pages/Prompts";
 import MCPServersPage from "./pages/MCPServers";
 import KeysPage from "./pages/Keys";
+import TracePage from "./pages/Trace";
+import ModelsPage from "./pages/Models";
 
 const queryClient = new QueryClient();
 
@@ -131,6 +133,11 @@ export default function App() {
           <Route path="/keys" element={
             <Layout>
               <ProtectedRoute><KeysPage /></ProtectedRoute>
+            </Layout>
+          } />
+          <Route path="/trace" element={
+            <Layout>
+              <ProtectedRoute><TracePage /></ProtectedRoute>
             </Layout>
           } />
         </Routes>

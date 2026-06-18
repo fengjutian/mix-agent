@@ -27,3 +27,5 @@ Thumbs.db
 
 # Docker 相关
 docker-compose.override.yml
+
+node_modules/

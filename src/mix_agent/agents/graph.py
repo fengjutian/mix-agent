@@ -10,6 +10,7 @@ from mix_agent.agents.agent_nodes import (
     orchestrator_node,
     code_review_node,
     sql_risk_explain_node,
+    auto_fix_node,
     summary_node,
     human_approval_node,
 )
@@ -40,17 +41,17 @@ def _route_after_orchestrator(state: AgentState) -> list[str]:
 
 
 def _route_after_sql(state: AgentState) -> str:
-    """SQL 审计后路由：有 pending_approval 则进入人工审批，否则进入汇总。"""
+    """SQL 审计后路由：有 pending_approval 则进入人工审批，否则进入 auto_fix。"""
     if state.pending_approval is not None:
         return "human_approval"
-    return "summary"
+    return "auto_fix"
 
 
 def build_graph() -> StateGraph:
     """构建并编译完整的 LangGraph 状态机。
 
-    流水线: parse_requirement → orchestrator → [code_review, sql_risk_explain]
-            → human_approval (条件) → summary → END
+    流水线: parse_requirement → orchestrator → code_review → sql_risk_explain
+            → auto_fix → human_approval (条件) → summary → END
     """
     workflow = StateGraph(AgentState)
 
@@ -59,6 +60,7 @@ def build_graph() -> StateGraph:
     workflow.add_node("orchestrator", orchestrator_node)
     workflow.add_node("code_review", code_review_node)
     workflow.add_node("sql_risk_explain", sql_risk_explain_node)
+    workflow.add_node("auto_fix", auto_fix_node)
     workflow.add_node("human_approval", human_approval_node)
     workflow.add_node("summary", summary_node)
 
@@ -71,16 +73,17 @@ def build_graph() -> StateGraph:
     workflow.add_edge("orchestrator", "code_review")
     workflow.add_edge("code_review", "sql_risk_explain")
 
-    # SQL 审计后：条件路由
+    # SQL 审计后：条件路由 → auto_fix 或 human_approval
     workflow.add_conditional_edges(
         "sql_risk_explain",
         _route_after_sql,
         {
             "human_approval": "human_approval",
-            "summary": "summary",
+            "auto_fix": "auto_fix",
         },
     )
 
+    workflow.add_edge("auto_fix", "summary")
     workflow.add_edge("human_approval", "summary")
     workflow.add_edge("summary", END)
 
