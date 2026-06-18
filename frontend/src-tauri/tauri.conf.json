@@ -38,10 +38,7 @@
   },
   "plugins": {
     "fs": {
-      "scope": {
-        "allow": ["$HOME/**", "$CWD/**"],
-        "deny": []
-      }
+      "requireLiteralLeadingDot": false
     }
   }
 }
