@@ -3,6 +3,7 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
 use notify::{Watcher, RecursiveMode, Event};
+use tauri::Emitter;
 
 /// Read file content from the local filesystem.
 /// Path is resolved relative to the current working directory.
