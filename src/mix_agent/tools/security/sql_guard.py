@@ -48,7 +48,7 @@ class SQLGuard:
             return result
 
         # ── DDL 检测 ──
-        if isinstance(parsed, (exp.Drop, exp.Truncate, exp.Alter)):
+        if isinstance(parsed, (exp.Drop, exp.TruncateTable, exp.Alter)):
             result.risk_level = RiskLevel.DANGER
             result.reasons.append(f"高危 DDL 操作被拦截: {parsed.sql()}")
             result.is_blocked = self.block_ddl

@@ -38,10 +38,26 @@ class TaskStatus(str, Enum):
 
 
 class TaskRequest(BaseModel):
-    """用户提交的模糊需求。"""
+    """用户提交的任务请求（Phase 1：指定仓库和分支）。"""
 
-    description: str
+    description: str = ""
+    target_branch: str = "HEAD"
+    base_branch: str = "main"
+    repo_path: str = "."
     context: dict[str, Any] = Field(default_factory=dict)
+
+
+class TaskDetail(BaseModel):
+    """任务详情响应。"""
+
+    task_id: str
+    status: TaskStatus
+    description: str = ""
+    target_branch: str = "HEAD"
+    base_branch: str = "main"
+    repo_path: str = "."
+    created_at: str | None = None
+    completed_at: str | None = None
 
 
 class TaskResponse(BaseModel):
@@ -49,6 +65,44 @@ class TaskResponse(BaseModel):
 
     task_id: str
     status: TaskStatus
+
+
+# ──────────── 审计发现与报告 ────────────
+
+
+class FindingItem(BaseModel):
+    """单条审计发现。"""
+
+    agent: str  # sql_audit / secret_scanner / ast_analyzer / git_diff
+    finding_type: str
+    risk_level: str  # safe / warning / danger
+    file_path: str | None = None
+    line_number: int | None = None
+    code_snippet: str | None = None
+    description: str = ""
+    recommendation: str = ""
+
+
+class FindingsResponse(BaseModel):
+    """发现项列表响应。"""
+
+    task_id: str
+    findings: list[FindingItem] = Field(default_factory=list)
+    total: int = 0
+
+
+class ReportResponse(BaseModel):
+    """审计报告响应。"""
+
+    task_id: str
+    format: str = "json"
+    summary: str = ""
+    total_findings: int = 0
+    danger_count: int = 0
+    warning_count: int = 0
+    changed_files: list[dict[str, Any]] = Field(default_factory=list)
+    findings: list[FindingItem] = Field(default_factory=list)
+    ast_symbols: dict[str, Any] = Field(default_factory=dict)
 
 
 # ──────────── 人工确认回路 ────────────
@@ -90,3 +144,14 @@ class AgentState(BaseModel):
     pending_approval: ApprovalRequest | None = None
     accumulated_tokens: int = 0
     error: str | None = None
+
+    # ── 节点输出 ──
+    parse_result: dict[str, Any] = Field(default_factory=dict)
+    orchestrator_result: dict[str, Any] = Field(default_factory=dict)
+    code_review_result: dict[str, Any] = Field(default_factory=dict)
+    sql_audit_result: dict[str, Any] = Field(default_factory=dict)
+    summary_result: dict[str, Any] = Field(default_factory=dict)
+
+    # Phase 1 工具数据
+    changed_files: list[dict[str, Any]] = Field(default_factory=list)
+    ast_symbols: dict[str, Any] = Field(default_factory=dict)

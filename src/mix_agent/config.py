@@ -4,12 +4,19 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    # ---------- LLM 模型配置 ----------
-    OPENAI_API_KEY: str = ""
-    OPENAI_MODEL: str = "gpt-4o"
+    # ---------- 数据库 ----------
+    DATABASE_URL: str = "postgresql+asyncpg://mixagent:mixagent_dev@localhost:5432/mixagent"
 
-    ANTHROPIC_API_KEY: str = ""
-    ANTHROPIC_MODEL: str = "claude-sonnet-4-20250514"
+    # ---------- LLM 模型配置 ----------
+    # MiniMax (OpenAI 兼容接口)
+    MINIMAX_API_KEY: str = ""
+    MINIMAX_BASE_URL: str = "https://api.minimax.chat/v1"
+    MINIMAX_MODEL: str = "MiniMax-Text-01"
+
+    # DeepSeek (OpenAI 兼容接口)
+    DEEPSEEK_API_KEY: str = ""
+    DEEPSEEK_BASE_URL: str = "https://api.deepseek.com/v1"
+    DEEPSEEK_MODEL: str = "deepseek-chat"
 
     # ---------- 向量数据库 ----------
     QDRANT_URL: str = "http://localhost:6333"
@@ -36,6 +43,10 @@ class Settings(BaseSettings):
     # ---------- Token 限流 ----------
     TOKEN_BURST_LIMIT: int = 100_000
     TOKEN_REFILL_RATE: int = 10_000
+
+    # ---------- JWT ----------
+    JWT_SECRET: str = "mix-agent-dev-secret-change-in-production"
+    JWT_EXPIRE_SECONDS: int = 86400  # 24 hours
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

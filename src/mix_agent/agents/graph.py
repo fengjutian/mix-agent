@@ -1,46 +1,90 @@
-"""LangGraph 状态机图定义 — 注册节点、边缘、安全熔断条件路由。"""
+"""LangGraph 状态机图定义 — 完整 Agent 编排流水线（Phase 2）。"""
+
+from __future__ import annotations
 
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
 
-from mix_agent.agents.nodes import (
-    parse_requirements_node,
-    code_analysis_node,
-    sql_audit_node,
+from mix_agent.agents.agent_nodes import (
+    parse_requirement_node,
+    orchestrator_node,
+    code_review_node,
+    sql_risk_explain_node,
     summary_node,
     human_approval_node,
 )
-from mix_agent.schemas import AgentState
+from mix_agent.schemas import AgentState, TaskStatus
+
+
+def _route_after_orchestrator(state: AgentState) -> list[str]:
+    """编排后的条件路由：根据 activated_agents 决定执行哪些节点。"""
+    agents = state.orchestrator_result.get("activated_agents", [])
+    nodes: list[str] = []
+
+    route_map = {
+        "sql_audit": "sql_risk_explain",
+        "code_review": "code_review",
+        # secret_scan / config_audit / dependency_audit 可后续扩展
+    }
+
+    for agent in agents:
+        node_name = route_map.get(agent)
+        if node_name and node_name not in nodes:
+            nodes.append(node_name)
+
+    # 至少运行一个节点后进入 summary
+    if not nodes:
+        nodes.append("summary")
+
+    return nodes
+
+
+def _route_after_sql(state: AgentState) -> str:
+    """SQL 审计后路由：有 pending_approval 则进入人工审批，否则进入汇总。"""
+    if state.pending_approval is not None:
+        return "human_approval"
+    return "summary"
 
 
 def build_graph() -> StateGraph:
-    """构建并编译完整的 LangGraph 状态机。"""
+    """构建并编译完整的 LangGraph 状态机。
 
+    流水线: parse_requirement → orchestrator → [code_review, sql_risk_explain]
+            → human_approval (条件) → summary → END
+    """
     workflow = StateGraph(AgentState)
 
     # 注册节点
-    workflow.add_node("parse_requirements", parse_requirements_node)
-    workflow.add_node("code_analysis", code_analysis_node)
-    workflow.add_node("sql_audit", sql_audit_node)
+    workflow.add_node("parse_requirement", parse_requirement_node)
+    workflow.add_node("orchestrator", orchestrator_node)
+    workflow.add_node("code_review", code_review_node)
+    workflow.add_node("sql_risk_explain", sql_risk_explain_node)
     workflow.add_node("human_approval", human_approval_node)
     workflow.add_node("summary", summary_node)
 
-    # 定义边
-    workflow.set_entry_point("parse_requirements")
-    workflow.add_edge("parse_requirements", "code_analysis")
-    workflow.add_edge("code_analysis", "sql_audit")
+    # 入口
+    workflow.set_entry_point("parse_requirement")
+    workflow.add_edge("parse_requirement", "orchestrator")
 
-    # 条件路由：SQL 审计结果触发人工确认还是直接结束
+    # 从 orchestrator 分发到各分析节点
+    # 简化：固定顺序执行 code_review → sql_risk_explain → summary
+    workflow.add_edge("orchestrator", "code_review")
+    workflow.add_edge("code_review", "sql_risk_explain")
+
+    # SQL 审计后：条件路由
     workflow.add_conditional_edges(
-        "sql_audit",
-        lambda s: "human_approval" if s.pending_approval else "summary",
-        {"human_approval": "human_approval", "summary": "summary"},
+        "sql_risk_explain",
+        _route_after_sql,
+        {
+            "human_approval": "human_approval",
+            "summary": "summary",
+        },
     )
 
     workflow.add_edge("human_approval", "summary")
     workflow.add_edge("summary", END)
 
-    # 编译（使用内存检查点，后续可替换为 Redis 持久化）
+    # 编译（开发环境用内存 checkpointer；生产环境替换为 PostgreSQL）
     checkpointer = MemorySaver()
     return workflow.compile(checkpointer=checkpointer)
 
