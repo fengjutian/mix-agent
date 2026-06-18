@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { setToken, getToken } from "../api/client";
+import { setToken, setRefreshToken, getToken } from "../api/client";
 
 interface AuthState {
   isLoggedIn: boolean;
@@ -16,11 +16,13 @@ export const useAuthStore = create<AuthState>((set) => ({
     const { login: apiLogin } = await import("../api/client");
     const data = await apiLogin(username, password);
     setToken(data.access_token);
+    setRefreshToken(data.refresh_token);
     set({ isLoggedIn: true, user: { username, role: "auditor" } });
   },
 
   logout: () => {
     setToken(null);
+    setRefreshToken(null);
     set({ isLoggedIn: false, user: null });
   },
 }));

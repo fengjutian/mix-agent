@@ -1,6 +1,6 @@
 import { useParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { getTask, getFindings, getReport } from "../api/client";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getTask, getFindings, getReport, cancelTask } from "../api/client";
 
 const riskLabel: Record<string, { label: string; badge: string }> = {
   danger:  { label: "DANGER",  badge: "badge--danger" },
@@ -13,14 +13,24 @@ const statusBadge: Record<string, string> = {
   failed:    "badge--danger",
   running:   "badge--info",
   pending:   "badge--warning",
+  cancelled: "badge--warning",
+  awaiting_approval: "badge--warning",
 };
 
 export default function TaskDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const qc = useQueryClient();
 
   const taskQ = useQuery({ queryKey: ["task", id], queryFn: () => getTask(id!) });
   const findingsQ = useQuery({ queryKey: ["findings", id], queryFn: () => getFindings(id!) });
   const reportQ = useQuery({ queryKey: ["report", id], queryFn: () => getReport(id!) });
+
+  const cancelMutation = useMutation({
+    mutationFn: () => cancelTask(id!),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["task", id] });
+    },
+  });
 
   if (taskQ.isLoading) return <div className="loading">Loading task...</div>;
   if (taskQ.error) return <div className="error-message">{(taskQ.error as Error).message}</div>;
@@ -51,6 +61,23 @@ export default function TaskDetailPage() {
             {task?.base_branch} → {task?.target_branch}
           </span>
         </div>
+
+        {(task?.status === "running" || task?.status === "pending") && (
+          <div style={{ marginTop: 16 }}>
+            <button
+              className="btn btn--danger btn--sm"
+              onClick={() => cancelMutation.mutate()}
+              disabled={cancelMutation.isPending}
+            >
+              {cancelMutation.isPending ? "Cancelling..." : "Cancel Task"}
+            </button>
+            {cancelMutation.isError && (
+              <span style={{ marginLeft: 12, color: "var(--danger)", fontSize: "0.85rem" }}>
+                {(cancelMutation.error as Error).message}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── Findings ── */}

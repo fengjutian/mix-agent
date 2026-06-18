@@ -35,8 +35,13 @@ async function request<T>(path: string, opts?: RequestInit): Promise<T> {
   // Auto-refresh on 401 (skip refresh endpoint itself to avoid loop)
   if (res.status === 401 && _refreshToken && path !== "/auth/refresh") {
     try {
-      const { refreshToken: doRefresh } = await import("./client");
-      const data = await doRefresh(_refreshToken);
+      const refreshRes = await fetch(`${BASE}/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh_token: _refreshToken }),
+      });
+      if (!refreshRes.ok) throw new Error("refresh failed");
+      const data = await refreshRes.json();
       setToken(data.access_token);
       setRefreshToken(data.refresh_token);
       headers["Authorization"] = `Bearer ${data.access_token}`;
@@ -61,7 +66,6 @@ async function request<T>(path: string, opts?: RequestInit): Promise<T> {
   return res.json();
 }
 
-// ── Auth ──
 // ── Auth ──
 export function login(username: string, password: string) {
   return request<{ access_token: string; refresh_token: string }>("/auth/login", {
