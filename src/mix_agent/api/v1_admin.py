@@ -1,5 +1,7 @@
 """管理后台 API — 成本看板、模型配置、API Key 管理。"""
 
+import json
+
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
@@ -123,6 +125,25 @@ def get_prompts(user: dict = Depends(require_admin)):
     return {"prompts": prompt_store.list_all()}
 
 
+class CreatePromptBody(BaseModel):
+    agent: str
+    system: str
+    user_template: str = "{input}"
+
+
+@router.post("/prompts")
+def create_prompt(body: CreatePromptBody, user: dict = Depends(require_admin)):
+    """创建新的自定义 prompt 模板。
+
+    Example: POST /admin/prompts
+    {"agent": "my_agent", "system": "你是一个...", "user_template": "{input}"}
+    """
+    ok = prompt_store.add(body.agent.strip(), body.system, body.user_template)
+    if not ok:
+        return {"ok": False, "error": f"Agent '{body.agent}' already exists or name is empty."}
+    return {"ok": True, "agent": body.agent}
+
+
 class UpdatePromptBody(BaseModel):
     system: str | None = None
     user_template: str | None = None
@@ -147,13 +168,86 @@ def update_prompt(agent: str, body: UpdatePromptBody, user: dict = Depends(requi
 
 
 @router.delete("/prompts/{agent}")
-def reset_prompt(agent: str, user: dict = Depends(require_admin)):
-    """重置指定 agent 的 prompt 为内置默认值。"""
-    ok = prompt_store.reset(agent)
+def delete_prompt(agent: str, user: dict = Depends(require_admin)):
+    """删除指定 agent 的 prompt。
+    
+    - 自定义 agent：彻底移除
+    - 内置 agent：清除覆盖值，恢复默认
+    """
+    ok = prompt_store.delete(agent)
     if not ok:
         known = [p["agent"] for p in prompt_store.list_all()]
         return {"ok": False, "error": f"Unknown agent '{agent}'. Available: {known}"}
-    return {"ok": True, "agent": agent, "message": "Reset to default"}
+    return {"ok": True, "agent": agent, "message": "Deleted"}
+
+
+class AIGenerateBody(BaseModel):
+    description: str
+
+
+@router.post("/prompts/ai-generate")
+async def ai_generate_prompt(body: AIGenerateBody, user: dict = Depends(require_admin)):
+    """使用 AI 根据自然语言描述生成 prompt 模板。
+
+    Example: POST /admin/prompts/ai-generate
+    {"description": "一个用于检查 Python 代码风格的 agent"}
+    
+    Returns {system, user_template, suggested_agent}
+    """
+    from mix_agent.services.llm import llm_client
+    from mix_agent.services.node_config import get_provider
+
+    description = body.description.strip()
+    if not description:
+        return {"ok": False, "error": "Description is required."}
+
+    provider = get_provider("orchestrator")
+
+    system_instruction = """你是一名 Prompt 工程专家。根据用户的描述，生成一个高质量的 Agent System Prompt 和 User Template。
+
+输出严格的 JSON 格式（不要包含 markdown 代码块标记）：
+{
+  "system": "system prompt 内容",
+  "user_template": "user template，用 {input} 作为输入占位符",
+  "suggested_agent": "建议的 agent 标识符（小写+下划线，如 code_style_checker）"
+}
+
+要求：
+- system prompt 要清晰定义 agent 的角色、输入格式、输出格式和分析维度
+- user_template 默认为 "{input}"，如有特殊需要可以定制
+- suggested_agent 要简短有意义，能表达 agent 的功能"""
+
+    try:
+        response = await llm_client.chat_with_prompt(
+            provider=provider,
+            system_prompt=system_instruction,
+            user_message=f"请为以下需求生成 Agent Prompt：\n\n{description}",
+            temperature=0.7,
+            max_tokens=2048,
+        )
+
+        content = response.content.strip()
+        # 提取 JSON：找第一个 { 和最后一个 }
+        start = content.find("{")
+        end = content.rfind("}")
+        if start == -1 or end == -1 or start > end:
+            return {"ok": False, "error": f"AI response contains no JSON: {content[:500]}"}
+        content = content[start:end + 1]
+
+        try:
+            result = json.loads(content)
+        except json.JSONDecodeError:
+            return {"ok": False, "error": f"AI returned invalid JSON: {content[:500]}"}
+
+        return {
+            "ok": True,
+            "system": result.get("system", ""),
+            "user_template": result.get("user_template", "{input}"),
+            "suggested_agent": result.get("suggested_agent", "custom_agent"),
+        }
+
+    except Exception as e:
+        return {"ok": False, "error": f"AI generation failed: {str(e)}"}
 
 
 # ── MCP Servers ──

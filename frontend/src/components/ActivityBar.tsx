@@ -1,5 +1,10 @@
 import { useLocation, useNavigate } from "react-router-dom";
 
+interface ActivityBarProps {
+  sidebarOpen: boolean;
+  onToggleSidebar: () => void;
+}
+
 interface ActivityItem {
   id: string;
   label: string;
@@ -104,9 +109,20 @@ const activities: ActivityItem[] = [
       </svg>
     ),
   },
+  {
+    id: "review",
+    label: "代码审查",
+    route: "/review",
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 20h9" />
+        <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+      </svg>
+    ),
+  },
 ];
 
-export default function ActivityBar() {
+export default function ActivityBar({ sidebarOpen, onToggleSidebar }: ActivityBarProps) {
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -118,6 +134,19 @@ export default function ActivityBar() {
   return (
     <nav className="activity-bar" aria-label="主导航">
       <div className="activity-bar__top">
+        {/* Sidebar toggle */}
+        <button
+          className={`activity-bar__item${sidebarOpen ? "" : " activity-bar__item--toggle-off"}`}
+          onClick={onToggleSidebar}
+          title={sidebarOpen ? "收起侧边栏" : "展开侧边栏"}
+          aria-label={sidebarOpen ? "收起侧边栏" : "展开侧边栏"}
+        >
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+            <line x1="9" y1="3" x2="9" y2="21" />
+          </svg>
+        </button>
+
         {activities.map((item) => (
           <button
             key={item.id}

@@ -214,8 +214,16 @@ export function getPrompts() {
       system: string;
       user_template: string;
       overridden: boolean;
+      is_custom: boolean;
     }>;
   }>("/admin/prompts");
+}
+
+export function createPrompt(agent: string, system: string, user_template?: string) {
+  return request<{ ok: boolean; agent: string; error?: string }>("/admin/prompts", {
+    method: "POST",
+    body: JSON.stringify({ agent, system, user_template: user_template ?? "{input}" }),
+  });
 }
 
 export function updatePrompt(agent: string, system?: string, user_template?: string) {
@@ -225,11 +233,24 @@ export function updatePrompt(agent: string, system?: string, user_template?: str
   });
 }
 
-export function resetPrompt(agent: string) {
+export function deletePrompt(agent: string) {
   return request<{ ok: boolean; agent: string; message?: string; error?: string }>(
     `/admin/prompts/${agent}`,
     { method: "DELETE" }
   );
+}
+
+export function aiGeneratePrompt(description: string) {
+  return request<{
+    ok: boolean;
+    system?: string;
+    user_template?: string;
+    suggested_agent?: string;
+    error?: string;
+  }>("/admin/prompts/ai-generate", {
+    method: "POST",
+    body: JSON.stringify({ description }),
+  });
 }
 
 // ── MCP Servers ──
@@ -316,6 +337,249 @@ export function deleteKey(provider: string) {
 }
 
 // ── Analyzer / 接口调用链分析 ──
+
+export function listRoutes() {
+  return request<{
+    ok: boolean;
+    routes: Array<{
+      method: string;
+      path: string;
+      full_path: string;
+      handler: string;
+      file_path: string;
+      line_number: number;
+      has_auth: boolean;
+      tags: string[];
+      summary: string;
+    }>;
+    total: number;
+  }>("/analyzer/routes");
+}
+
+export function traceInterface(method: string, path: string, sourceRoot: string = ".") {
+  return request<{
+    ok: boolean;
+    entry_point: string;
+    route_info: {
+      method: string;
+      path: string;
+      handler: string;
+      file_path: string;
+      line_number: number;
+      has_auth: boolean;
+      auth_deps: string[];
+      tags: string[];
+    } | null;
+    call_chain: Array<{
+      name: string;
+      kind: string;
+      file_path: string;
+      line_number: number;
+    }>;
+    tables: Array<{
+      table_name: string;
+      class_name: string | null;
+      operation: string;
+      location: string;
+      file_path: string;
+      line_number: number;
+    }>;
+    swimlane: string;
+    diagram_nodes: Array<{
+      id: string;
+      name: string;
+      kind: string;
+      file_path: string;
+      line_number: number;
+    }>;
+    diagram_edges: Array<{ from: string; to: string }>;
+    summary: string;
+    all_routes: Array<{
+      method: string;
+      path: string;
+      full_path: string;
+      handler: string;
+      file_path: string;
+      line_number: number;
+    }>;
+    error: string;
+  }>("/analyzer/trace", {
+    method: "POST",
+    body: JSON.stringify({ method, path, source_root: sourceRoot }),
+  });
+}
+
+// ── Review ──
+
+export function listCommits(params: {
+  branch?: string;
+  max_count?: number;
+  skip?: number;
+  file_path?: string;
+  since?: string;
+  until?: string;
+  author?: string;
+  repo_path?: string;
+} = {}) {
+  const qs = new URLSearchParams();
+  if (params.branch) qs.set("branch", params.branch);
+  if (params.max_count) qs.set("max_count", String(params.max_count));
+  if (params.skip) qs.set("skip", String(params.skip));
+  if (params.file_path) qs.set("file_path", params.file_path);
+  if (params.since) qs.set("since", params.since);
+  if (params.until) qs.set("until", params.until);
+  if (params.author) qs.set("author", params.author);
+  if (params.repo_path) qs.set("repo_path", params.repo_path);
+  return request<{
+    ok: boolean;
+    branch: string;
+    commits: Array<{
+      sha: string;
+      short_sha: string;
+      author: string;
+      author_email: string;
+      date: string;
+      message: string;
+      refs: string[];
+    }>;
+    total: number;
+  }>(`/review/commits?${qs.toString()}`);
+}
+
+export function getCommitDetail(sha: string, repo_path: string = ".") {
+  return request<{
+    ok: boolean;
+    commit: {
+      sha: string;
+      short_sha: string;
+      author: string;
+      author_email: string;
+      date: string;
+      message: string;
+      refs: string[];
+      changed_files: Array<{
+        file_path: string;
+        change_type: string;
+        old_path: string | null;
+        additions: number;
+        deletions: number;
+      }>;
+      total_additions: number;
+      total_deletions: number;
+    };
+    raw_diff: string;
+  }>(`/review/commits/${sha}?repo_path=${encodeURIComponent(repo_path)}`);
+}
+
+export function listBranches(include_remote?: boolean, repo_path?: string) {
+  const qs = new URLSearchParams();
+  if (include_remote) qs.set("include_remote", "true");
+  if (repo_path) qs.set("repo_path", repo_path);
+  return request<{
+    ok: boolean;
+    current: string;
+    branches: Array<{
+      name: string;
+      is_current: boolean;
+      is_remote: boolean;
+      last_commit_sha: string;
+      last_commit_short: string;
+      last_commit_date: string;
+      last_commit_message: string;
+    }>;
+    total: number;
+  }>(`/review/branches?${qs.toString()}`);
+}
+
+export function checkoutBranch(branch: string, create?: boolean, repo_path?: string) {
+  const qs = new URLSearchParams();
+  qs.set("branch", branch);
+  if (create) qs.set("create", "true");
+  if (repo_path) qs.set("repo_path", repo_path);
+  return request<{ ok: boolean; current: string; checked_out: string }>(
+    `/review/branches/checkout?${qs.toString()}`,
+    { method: "POST" }
+  );
+}
+
+export function readFile(file_path: string, revision?: string, repo_path?: string) {
+  const qs = new URLSearchParams();
+  qs.set("file_path", file_path);
+  if (revision) qs.set("revision", revision);
+  if (repo_path) qs.set("repo_path", repo_path);
+  return request<{
+    ok: boolean;
+    file_path: string;
+    revision: string;
+    content: string;
+  }>(`/review/file?${qs.toString()}`);
+}
+
+export function blameFile(
+  file_path: string,
+  revision?: string,
+  line_start?: number,
+  line_end?: number,
+  repo_path?: string
+) {
+  const qs = new URLSearchParams();
+  qs.set("file_path", file_path);
+  if (revision) qs.set("revision", revision);
+  if (line_start) qs.set("line_start", String(line_start));
+  if (line_end) qs.set("line_end", String(line_end));
+  if (repo_path) qs.set("repo_path", repo_path);
+  return request<{
+    ok: boolean;
+    file_path: string;
+    revision: string;
+    lines: Array<{
+      line_number: number;
+      content: string;
+      commit_sha: string;
+      short_sha: string;
+      author: string;
+      date: string;
+      summary: string;
+    }>;
+    total: number;
+  }>(`/review/blame?${qs.toString()}`);
+}
+
+export function getDiffs(target?: string, base?: string, repo_path?: string) {
+  const qs = new URLSearchParams();
+  if (target) qs.set("target", target);
+  if (base) qs.set("base", base);
+  if (repo_path) qs.set("repo_path", repo_path);
+  return request<{
+    ok: boolean;
+    target: string;
+    base: string;
+    changed_files: Array<{
+      file_path: string;
+      change_type: string;
+      old_path: string | null;
+      additions: number;
+      deletions: number;
+    }>;
+    total_additions: number;
+    total_deletions: number;
+    raw_diff: string;
+  }>(`/review/diffs?${qs.toString()}`);
+}
+
+export function getRepoStatus(repo_path?: string) {
+  const qs = repo_path ? `?repo_path=${encodeURIComponent(repo_path)}` : "";
+  return request<{
+    ok: boolean;
+    branch: string;
+    status_items: Array<{
+      file_path: string;
+      status: string;
+      staged: boolean;
+    }>;
+    is_clean: boolean;
+  }>(`/review/status${qs}`);
+}
 
 export function listRoutes() {
   return request<{

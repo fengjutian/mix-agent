@@ -5,6 +5,7 @@ import { useAuthStore } from "./stores/auth";
 import { useResizable } from "./hooks/useResizable";
 import ActivityBar from "./components/ActivityBar";
 import Sidebar from "./components/Sidebar";
+import StatusBar from "./components/StatusBar";
 import LoginPage from "./pages/Login";
 import HomePage from "./pages/Home";
 import TaskDetailPage from "./pages/TaskDetail";
@@ -15,6 +16,7 @@ import MCPServersPage from "./pages/MCPServers";
 import KeysPage from "./pages/Keys";
 import TracePage from "./pages/Trace";
 import ModelsPage from "./pages/Models";
+import ReviewPage from "./pages/Review";
 
 const queryClient = new QueryClient();
 
@@ -48,7 +50,7 @@ function Layout({ children }: { children: React.ReactNode }) {
 
       {/* ── Body: Activity Bar | Sidebar | Content ── */}
       <div className="workspace">
-        <ActivityBar />
+        <ActivityBar sidebarOpen={sidebarOpen} onToggleSidebar={toggleSidebar} />
 
         <div className={`sidebar-area${sidebarOpen ? "" : " sidebar-area--collapsed"}`} ref={panelRef}>
           <div className="sidebar-area__inner">
@@ -79,6 +81,9 @@ function Layout({ children }: { children: React.ReactNode }) {
 
         <main className="page-content">{children}</main>
       </div>
+
+      {/* ── Status Bar ── */}
+      <StatusBar />
     </div>
   );
 }
@@ -133,6 +138,11 @@ export default function App() {
           <Route path="/trace" element={
             <Layout>
               <ProtectedRoute><TracePage /></ProtectedRoute>
+            </Layout>
+          } />
+          <Route path="/review" element={
+            <Layout>
+              <ProtectedRoute><ReviewPage /></ProtectedRoute>
             </Layout>
           } />
           <Route path="/settings" element={

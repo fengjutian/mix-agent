@@ -115,6 +115,16 @@
   border-radius: 0 2px 2px 0;
 }
 
+.activity-bar__item--toggle-off {
+  color: var(--text-muted);
+  opacity: 0.55;
+}
+
+.activity-bar__item--toggle-off:hover {
+  opacity: 1;
+  color: var(--text-heading);
+}
+
 /* ── Sidebar Area ── */
 
 .sidebar-area {
@@ -122,11 +132,25 @@
   overflow: hidden;
   background: var(--bg);
   border-right: 1px solid var(--border);
+  transition: width 180ms var(--ease-out);
 }
 
 .sidebar-area--collapsed {
-  width: 0 !important;
-  border-right: none;
+  width: 34px !important;
+  border-right: 1px solid var(--border);
+}
+
+.sidebar-area--collapsed .sidebar-area__title {
+  display: none;
+}
+
+.sidebar-area--collapsed .sidebar-area__header {
+  justify-content: center;
+  padding: 10px 0;
+}
+
+.sidebar-area--collapsed .sidebar {
+  display: none;
 }
 
 .sidebar-area__inner {
@@ -700,6 +724,84 @@ tbody tr:hover {
   height: 1px;
   background: var(--border);
   margin: 24px 0;
+}
+
+/* ── Status Bar ── */
+
+.status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 24px;
+  min-height: 24px;
+  padding: 0 10px;
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border);
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  user-select: none;
+  z-index: 80;
+}
+
+.status-bar__left,
+.status-bar__right {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.status-bar__item {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 3px;
+  cursor: default;
+  transition: background 120ms var(--ease-out), color 120ms var(--ease-out);
+  white-space: nowrap;
+}
+
+.status-bar__item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-heading);
+}
+
+/* ── Modal ── */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.modal {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  min-width: 380px;
+  max-width: 90vw;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+
+.modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.modal__body {
+  margin-bottom: 4px;
+}
+
+.modal__footer {
+  border-top: 1px solid var(--border);
 }
 
 /* ── Responsive ── */
