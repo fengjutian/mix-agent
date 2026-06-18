@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query
 
-from mix_agent.api.deps import get_current_user
 from mix_agent.tools.vcs.git_tool import GitTool
 
 router = APIRouter()
@@ -30,7 +29,6 @@ def list_commits(
     until: str | None = Query(None, description="结束日期"),
     author: str | None = Query(None, description="作者过滤"),
     repo_path: str = Query(".", description="仓库路径"),
-    user: dict = Depends(get_current_user),
 ) -> dict:
     """获取提交历史列表。"""
     try:
@@ -60,7 +58,6 @@ def list_commits(
 def get_commit_detail(
     sha: str,
     repo_path: str = Query(".", description="仓库路径"),
-    user: dict = Depends(get_current_user),
 ) -> dict:
     """获取单个 commit 详情（含变更文件列表和 diff）。"""
     try:
@@ -86,7 +83,6 @@ def get_commit_detail(
 def list_branches(
     include_remote: bool = Query(False, description="是否包含远程分支"),
     repo_path: str = Query(".", description="仓库路径"),
-    user: dict = Depends(get_current_user),
 ) -> dict:
     """列出所有分支（含当前分支标记和最后提交信息）。"""
     try:
@@ -110,7 +106,6 @@ def checkout_branch(
     branch: str = Query(..., description="目标分支名"),
     create: bool = Query(False, description="是否创建新分支 (git checkout -b)"),
     repo_path: str = Query(".", description="仓库路径"),
-    user: dict = Depends(get_current_user),
 ) -> dict:
     """切换分支。"""
     try:
@@ -133,7 +128,6 @@ def read_file(
     file_path: str = Query(..., description="文件路径（相对于仓库根目录）"),
     revision: str = Query("HEAD", description="分支/commit/tag"),
     repo_path: str = Query(".", description="仓库路径"),
-    user: dict = Depends(get_current_user),
 ) -> dict:
     """读取指定 revision 下的文件内容。"""
     try:
@@ -163,7 +157,6 @@ def blame_file(
     line_start: int | None = Query(None, ge=1, description="起始行"),
     line_end: int | None = Query(None, ge=1, description="结束行"),
     repo_path: str = Query(".", description="仓库路径"),
-    user: dict = Depends(get_current_user),
 ) -> dict:
     """文件逐行归属分析（git blame）。"""
     try:
@@ -192,7 +185,6 @@ def get_diff(
     target: str = Query("HEAD", description="目标分支/commit"),
     base: str = Query("main", description="基准分支"),
     repo_path: str = Query(".", description="仓库路径"),
-    user: dict = Depends(get_current_user),
 ) -> dict:
     """获取两个 ref 之间的差异。"""
     try:
@@ -217,7 +209,6 @@ def diff_file(
     target: str = Query("HEAD", description="目标分支/commit"),
     base: str = Query("main", description="基准分支"),
     repo_path: str = Query(".", description="仓库路径"),
-    user: dict = Depends(get_current_user),
 ) -> dict:
     """获取单个文件的 diff。"""
     try:
@@ -244,7 +235,6 @@ def diff_file(
 @router.get("/status")
 def repo_status(
     repo_path: str = Query(".", description="仓库路径"),
-    user: dict = Depends(get_current_user),
 ) -> dict:
     """获取工作区状态。"""
     try:
@@ -265,7 +255,6 @@ def repo_status(
 @router.get("/stashes")
 def list_stashes(
     repo_path: str = Query(".", description="仓库路径"),
-    user: dict = Depends(get_current_user),
 ) -> dict:
     """列出所有 stash。"""
     try:
@@ -287,7 +276,6 @@ def create_stash(
     message: str = Query("", description="Stash 描述"),
     include_untracked: bool = Query(False, description="包含未跟踪文件"),
     repo_path: str = Query(".", description="仓库路径"),
-    user: dict = Depends(get_current_user),
 ) -> dict:
     """创建 stash。"""
     try:
@@ -304,7 +292,6 @@ def create_stash(
 def pop_stash(
     index: int = Query(0, ge=0, description="Stash 索引"),
     repo_path: str = Query(".", description="仓库路径"),
-    user: dict = Depends(get_current_user),
 ) -> dict:
     """弹出 stash。"""
     try:
@@ -325,7 +312,6 @@ def pop_stash(
 @router.get("/tags")
 def list_tags(
     repo_path: str = Query(".", description="仓库路径"),
-    user: dict = Depends(get_current_user),
 ) -> dict:
     """列出所有 tag。"""
     try:
@@ -345,7 +331,6 @@ def list_tags(
 @router.get("/remotes")
 def list_remotes(
     repo_path: str = Query(".", description="仓库路径"),
-    user: dict = Depends(get_current_user),
 ) -> dict:
     """列出所有 remote。"""
     try:

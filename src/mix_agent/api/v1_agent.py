@@ -9,10 +9,9 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 
 from mix_agent.agents.graph import agent_graph
-from mix_agent.api.deps import get_current_user
 from mix_agent.api.v1_approvals import register_pending_approval
 from mix_agent.schemas import AgentState, AgentRunRequest, AgentRunResponse, TaskStatus
 from mix_agent.tools.vcs.git_tool import GitTool
@@ -24,7 +23,7 @@ _agent_results: dict[str, dict] = {}
 
 
 @router.post("/run", response_model=AgentRunResponse)
-async def run_agent(req: AgentRunRequest, user: dict = Depends(get_current_user)):
+async def run_agent(req: AgentRunRequest):
     """启动 AI Agent 审计流水线。
 
     提交自然语言描述和仓库/分支信息，运行完整的 LangGraph 流水线：
@@ -128,7 +127,7 @@ async def run_agent(req: AgentRunRequest, user: dict = Depends(get_current_user)
 
 
 @router.get("/{task_id}/result")
-async def get_agent_result(task_id: str, user: dict = Depends(get_current_user)):
+async def get_agent_result(task_id: str):
     """获取 AI Agent 审计的完整结果，包含所有节点的输出。"""
     result = _agent_results.get(task_id)
     if result is None:

@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, HTTPException, status
 
-from mix_agent.api.deps import get_current_user, require_auditor
 from mix_agent.schemas import ApprovalAction, ApprovalDecision, ApprovalRequest, TaskStatus
 
 router = APIRouter()
@@ -19,7 +18,7 @@ _audit_log: list[dict] = []
 
 
 @router.get("/pending")
-def list_pending_approvals(user: dict = Depends(require_auditor)):
+def list_pending_approvals():
     """获取当前所有待审批项（需 auditor 或 admin 角色）。"""
     items = [
         {
@@ -36,7 +35,6 @@ def list_pending_approvals(user: dict = Depends(require_auditor)):
 @router.get("/pending/{task_id}")
 def get_pending_approval(
     task_id: str,
-    user: dict = Depends(require_auditor),
 ):
     """获取指定任务的待审批详情。"""
     ar = _pending_approvals.get(task_id)
@@ -48,7 +46,6 @@ def get_pending_approval(
 @router.post("/respond")
 def respond_approval(
     action: ApprovalAction,
-    user: dict = Depends(require_auditor),
 ):
     """提交审批决策（approve / reject / modify）。
 

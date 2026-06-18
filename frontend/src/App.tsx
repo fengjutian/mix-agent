@@ -1,12 +1,12 @@
 import { useState, useCallback } from "react";
-import { HashRouter, Routes, Route, Link, Navigate } from "react-router-dom";
+import { HashRouter, Routes, Route, Link, useLocation } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useAuthStore } from "./stores/auth";
 import { useResizable } from "./hooks/useResizable";
 import ActivityBar from "./components/ActivityBar";
 import Sidebar from "./components/Sidebar";
 import StatusBar from "./components/StatusBar";
-import LoginPage from "./pages/Login";
+import LockScreen from "./pages/LockScreen";
 import HomePage from "./pages/Home";
 import TaskDetailPage from "./pages/TaskDetail";
 import ApprovalsPage from "./pages/Approvals";
@@ -21,11 +21,15 @@ import ReviewPage from "./pages/Review";
 const queryClient = new QueryClient();
 
 function Layout({ children }: { children: React.ReactNode }) {
-  const { isLoggedIn, logout } = useAuthStore();
+  const { isUnlocked, hasPassword, lock } = useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const { panelRef, onMouseDown } = useResizable({ initial: 260, min: 180, max: 420 });
+  const location = useLocation();
 
   const toggleSidebar = useCallback(() => setSidebarOpen((o) => !o), []);
+
+  // 代码审查页面有自己的左侧面板，不需要全局资源管理器
+  const isReviewPage = location.pathname === "/review";
 
   return (
     <div className="page-shell">
@@ -36,14 +40,10 @@ function Layout({ children }: { children: React.ReactNode }) {
           mix-agent
         </Link>
         <div className="site-header__actions">
-          {isLoggedIn ? (
-            <button onClick={logout} className="btn btn--secondary btn--sm">
-              退出登录
+          {hasPassword && (
+            <button onClick={lock} className="btn btn--secondary btn--sm">
+              锁定屏幕
             </button>
-          ) : (
-            <Link to="/login" className="btn btn--secondary btn--sm">
-              登录
-            </Link>
           )}
         </div>
       </header>
@@ -52,31 +52,35 @@ function Layout({ children }: { children: React.ReactNode }) {
       <div className="workspace">
         <ActivityBar sidebarOpen={sidebarOpen} onToggleSidebar={toggleSidebar} />
 
-        <div className={`sidebar-area${sidebarOpen ? "" : " sidebar-area--collapsed"}`} ref={panelRef}>
-          <div className="sidebar-area__inner">
-            <div className="sidebar-area__header">
-              <span className="sidebar-area__title">资源管理器</span>
-              <button
-                className="sidebar-area__collapse-btn"
-                onClick={toggleSidebar}
-                aria-label="切换侧边栏"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  {sidebarOpen ? (
-                    <polyline points="15 18 9 12 15 6" />
-                  ) : (
-                    <polyline points="9 18 15 12 9 6" />
-                  )}
-                </svg>
-              </button>
+        {!isReviewPage && (
+          <>
+            <div className={`sidebar-area${sidebarOpen ? "" : " sidebar-area--collapsed"}`} ref={panelRef}>
+              <div className="sidebar-area__inner">
+                <div className="sidebar-area__header">
+                  <span className="sidebar-area__title">资源管理器</span>
+                  <button
+                    className="sidebar-area__collapse-btn"
+                    onClick={toggleSidebar}
+                    aria-label="切换侧边栏"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      {sidebarOpen ? (
+                        <polyline points="15 18 9 12 15 6" />
+                      ) : (
+                        <polyline points="9 18 15 12 9 6" />
+                      )}
+                    </svg>
+                  </button>
+                </div>
+                <Sidebar />
+              </div>
             </div>
-            <Sidebar />
-          </div>
-        </div>
 
-        {/* Resize handle */}
-        {sidebarOpen && (
-          <div className="workspace__resize-handle" onMouseDown={onMouseDown} />
+            {/* Resize handle */}
+            {sidebarOpen && (
+              <div className="workspace__resize-handle" onMouseDown={onMouseDown} />
+            )}
+          </>
         )}
 
         <main className="page-content">{children}</main>
@@ -89,8 +93,8 @@ function Layout({ children }: { children: React.ReactNode }) {
 }
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
-  if (!isLoggedIn) return <Navigate to="/login" replace />;
+  const isUnlocked = useAuthStore((s) => s.isUnlocked);
+  if (!isUnlocked) return <LockScreen />;
   return <>{children}</>;
 }
 
@@ -99,7 +103,6 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <HashRouter>
         <Routes>
-          <Route path="/login" element={<LoginPage />} />
           <Route path="/" element={
             <Layout>
               <ProtectedRoute><HomePage /></ProtectedRoute>

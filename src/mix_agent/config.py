@@ -44,10 +44,6 @@ class Settings(BaseSettings):
     TOKEN_BURST_LIMIT: int = 100_000
     TOKEN_REFILL_RATE: int = 10_000
 
-    # ---------- JWT ----------
-    JWT_SECRET: str = "mix-agent-dev-secret-change-in-production"
-    JWT_EXPIRE_SECONDS: int = 86400  # 24 hours
-
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
 

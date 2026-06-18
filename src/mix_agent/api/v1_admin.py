@@ -2,10 +2,9 @@
 
 import json
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 from pydantic import BaseModel
 
-from mix_agent.api.deps import require_admin
 from mix_agent.services.cost_manager import cost_manager
 from mix_agent.services.node_config import list_nodes, list_models, set_node_provider
 from mix_agent.services.llm import MODEL_REGISTRY
@@ -21,13 +20,13 @@ router = APIRouter()
 # ── Cost ──
 
 @router.get("/cost/overview")
-def cost_overview(user: dict = Depends(require_admin)):
+def cost_overview():
     """成本概览：总成本、总调用次数、活跃任务数。"""
     return cost_manager.overview()
 
 
 @router.get("/cost/breakdown")
-def cost_breakdown(user: dict = Depends(require_admin)):
+def cost_breakdown():
     """按任务拆解成本：每任务的 cost/calls/budget/usage%。"""
     return {
         "tasks": cost_manager.breakdown_by_task(),
@@ -37,7 +36,7 @@ def cost_breakdown(user: dict = Depends(require_admin)):
 # ── Models ──
 
 @router.get("/models")
-def get_models(user: dict = Depends(require_admin)):
+def get_models():
     """返回已注册模型列表 + 各 agent 节点的当前 provider 分配。"""
     return {
         "models": list_models(),
@@ -51,7 +50,7 @@ class AssignModelBody(BaseModel):
 
 
 @router.put("/models/assign")
-def assign_model(body: AssignModelBody, user: dict = Depends(require_admin)):
+def assign_model(body: AssignModelBody):
     """将指定 agent 节点切换到另一个 provider。
 
     Example: {"node": "code_review", "provider": "minimax"}
@@ -77,7 +76,7 @@ def assign_model(body: AssignModelBody, user: dict = Depends(require_admin)):
 # ── API Keys ──
 
 @router.get("/keys")
-def get_keys(user: dict = Depends(require_admin)):
+def get_keys():
     """返回所有已配置的 API key（加密遮盖）。"""
     return {"keys": key_store.list_keys()}
 
@@ -90,7 +89,7 @@ class SetKeyBody(BaseModel):
 
 
 @router.put("/keys")
-def set_key(body: SetKeyBody, user: dict = Depends(require_admin)):
+def set_key(body: SetKeyBody):
     """设置/更新某个 provider 的 API key。
 
     Example: {"provider": "openai", "api_key": "sk-xxx", "base_url": "https://api.openai.com/v1", "model": "gpt-4o"}
@@ -108,7 +107,7 @@ class DeleteKeyBody(BaseModel):
 
 
 @router.delete("/keys")
-def delete_key(body: DeleteKeyBody, user: dict = Depends(require_admin)):
+def delete_key(body: DeleteKeyBody):
     """删除某个 provider 的 API key 配置。"""
     provider = body.provider.strip().lower()
     ok = key_store.delete_key(provider)
@@ -120,7 +119,7 @@ def delete_key(body: DeleteKeyBody, user: dict = Depends(require_admin)):
 # ── Prompts ──
 
 @router.get("/prompts")
-def get_prompts(user: dict = Depends(require_admin)):
+def get_prompts():
     """返回所有 agent 的当前 prompt 模板。"""
     return {"prompts": prompt_store.list_all()}
 
@@ -132,7 +131,7 @@ class CreatePromptBody(BaseModel):
 
 
 @router.post("/prompts")
-def create_prompt(body: CreatePromptBody, user: dict = Depends(require_admin)):
+def create_prompt(body: CreatePromptBody):
     """创建新的自定义 prompt 模板。
 
     Example: POST /admin/prompts
@@ -150,7 +149,7 @@ class UpdatePromptBody(BaseModel):
 
 
 @router.put("/prompts/{agent}")
-def update_prompt(agent: str, body: UpdatePromptBody, user: dict = Depends(require_admin)):
+def update_prompt(agent: str, body: UpdatePromptBody):
     """更新指定 agent 的 prompt 模板。
 
     Example: PUT /admin/prompts/code_review
@@ -168,7 +167,7 @@ def update_prompt(agent: str, body: UpdatePromptBody, user: dict = Depends(requi
 
 
 @router.delete("/prompts/{agent}")
-def delete_prompt(agent: str, user: dict = Depends(require_admin)):
+def delete_prompt(agent: str):
     """删除指定 agent 的 prompt。
     
     - 自定义 agent：彻底移除
@@ -186,7 +185,7 @@ class AIGenerateBody(BaseModel):
 
 
 @router.post("/prompts/ai-generate")
-async def ai_generate_prompt(body: AIGenerateBody, user: dict = Depends(require_admin)):
+async def ai_generate_prompt(body: AIGenerateBody):
     """使用 AI 根据自然语言描述生成 prompt 模板。
 
     Example: POST /admin/prompts/ai-generate
@@ -253,7 +252,7 @@ async def ai_generate_prompt(body: AIGenerateBody, user: dict = Depends(require_
 # ── MCP Servers ──
 
 @router.get("/mcp/servers")
-def list_mcp_servers(user: dict = Depends(require_admin)):
+def list_mcp_servers():
     """返回所有已配置的 MCP 服务器列表。"""
     servers = mcp_store.list_all()
     return {"servers": [s.to_dict() for s in servers]}
@@ -271,7 +270,7 @@ class AddMCPServerBody(BaseModel):
 
 
 @router.post("/mcp/servers")
-def add_mcp_server(body: AddMCPServerBody, user: dict = Depends(require_admin)):
+def add_mcp_server(body: AddMCPServerBody):
     """添加新的 MCP 服务器配置。"""
     if body.transport not in ("stdio", "http", "sse"):
         return {"ok": False, "error": f"Invalid transport '{body.transport}'. Use stdio/http/sse."}
@@ -304,7 +303,7 @@ class UpdateMCPServerBody(BaseModel):
 
 
 @router.put("/mcp/servers/{name}")
-def update_mcp_server(name: str, body: UpdateMCPServerBody, user: dict = Depends(require_admin)):
+def update_mcp_server(name: str, body: UpdateMCPServerBody):
     """更新 MCP 服务器配置（部分更新）。"""
     updates = {}
     if body.transport is not None:
@@ -333,7 +332,7 @@ def update_mcp_server(name: str, body: UpdateMCPServerBody, user: dict = Depends
 
 
 @router.delete("/mcp/servers/{name}")
-def delete_mcp_server(name: str, user: dict = Depends(require_admin)):
+def delete_mcp_server(name: str):
     """删除 MCP 服务器配置。"""
     ok = mcp_store.delete(name)
     if not ok:
@@ -342,7 +341,7 @@ def delete_mcp_server(name: str, user: dict = Depends(require_admin)):
 
 
 @router.post("/mcp/servers/{name}/test")
-async def test_mcp_server(name: str, user: dict = Depends(require_admin)):
+async def test_mcp_server(name: str):
     """测试 MCP 服务器连接。"""
     cfg = mcp_store.get(name)
     if not cfg:

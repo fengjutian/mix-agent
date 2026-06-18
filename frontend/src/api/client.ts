@@ -1,84 +1,18 @@
 const BASE = "http://localhost:8000/api/v1";
 
-let token: string | null = localStorage.getItem("access_token");
-let _refreshToken: string | null = localStorage.getItem("refresh_token");
-
-export function setToken(t: string | null) {
-  token = t;
-  if (t) localStorage.setItem("access_token", t);
-  else localStorage.removeItem("access_token");
-}
-
-export function setRefreshToken(rt: string | null) {
-  _refreshToken = rt;
-  if (rt) localStorage.setItem("refresh_token", rt);
-  else localStorage.removeItem("refresh_token");
-}
-
-export function getToken() {
-  return token;
-}
-
-export function getRefreshToken() {
-  return _refreshToken;
-}
-
 async function request<T>(path: string, opts?: RequestInit): Promise<T> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(opts?.headers as Record<string, string> || {}),
   };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
 
   const res = await fetch(`${BASE}${path}`, { ...opts, headers });
-
-  // Auto-refresh on 401 (skip refresh endpoint itself to avoid loop)
-  if (res.status === 401 && _refreshToken && path !== "/auth/refresh") {
-    try {
-      const refreshRes = await fetch(`${BASE}/auth/refresh`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refresh_token: _refreshToken }),
-      });
-      if (!refreshRes.ok) throw new Error("刷新令牌失败");
-      const data = await refreshRes.json();
-      setToken(data.access_token);
-      setRefreshToken(data.refresh_token);
-      headers["Authorization"] = `Bearer ${data.access_token}`;
-      const retry = await fetch(`${BASE}${path}`, { ...opts, headers });
-      if (!retry.ok) {
-        const err = await retry.text();
-        throw new Error(`${retry.status}: ${err}`);
-      }
-      return retry.json();
-    } catch {
-      // Refresh failed — clear tokens and reject
-      setToken(null);
-      setRefreshToken(null);
-      throw new Error("401：会话已过期，请重新登录");
-    }
-  }
 
   if (!res.ok) {
     const err = await res.text();
     throw new Error(`${res.status}: ${err}`);
   }
   return res.json();
-}
-
-// ── Auth ──
-export function login(username: string, password: string) {
-  return request<{ access_token: string; refresh_token: string }>("/auth/login", {
-    method: "POST",
-    body: JSON.stringify({ username, password }),
-  });
-}
-
-export function refreshToken(refresh_token: string) {
-  return request<{ access_token: string; refresh_token: string }>("/auth/refresh", {
-    method: "POST",
-    body: JSON.stringify({ refresh_token }),
-  });
 }
 
 // ── Tasks ──
@@ -579,75 +513,4 @@ export function getRepoStatus(repo_path?: string) {
     }>;
     is_clean: boolean;
   }>(`/review/status${qs}`);
-}
-
-export function listRoutes() {
-  return request<{
-    ok: boolean;
-    routes: Array<{
-      method: string;
-      path: string;
-      full_path: string;
-      handler: string;
-      file_path: string;
-      line_number: number;
-      has_auth: boolean;
-      tags: string[];
-      summary: string;
-    }>;
-    total: number;
-  }>("/analyzer/routes");
-}
-
-export function traceInterface(method: string, path: string, sourceRoot: string = ".") {
-  return request<{
-    ok: boolean;
-    entry_point: string;
-    route_info: {
-      method: string;
-      path: string;
-      handler: string;
-      file_path: string;
-      line_number: number;
-      has_auth: boolean;
-      auth_deps: string[];
-      tags: string[];
-    } | null;
-    call_chain: Array<{
-      name: string;
-      kind: string;
-      file_path: string;
-      line_number: number;
-    }>;
-    tables: Array<{
-      table_name: string;
-      class_name: string | null;
-      operation: string;
-      location: string;
-      file_path: string;
-      line_number: number;
-    }>;
-    swimlane: string;
-    diagram_nodes: Array<{
-      id: string;
-      name: string;
-      kind: string;
-      file_path: string;
-      line_number: number;
-    }>;
-    diagram_edges: Array<{ from: string; to: string }>;
-    summary: string;
-    all_routes: Array<{
-      method: string;
-      path: string;
-      full_path: string;
-      handler: string;
-      file_path: string;
-      line_number: number;
-    }>;
-    error: string;
-  }>("/analyzer/trace", {
-    method: "POST",
-    body: JSON.stringify({ method, path, source_root: sourceRoot }),
-  });
 }

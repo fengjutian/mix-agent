@@ -4,10 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
-from mix_agent.api.deps import get_current_user
 from mix_agent.tools.parser.route_scanner import RouteScanner
 from mix_agent.tools.parser.call_chain import CallChainTracer
 from mix_agent.tools.parser.table_extractor import TableExtractor
@@ -75,7 +74,6 @@ class ListRoutesResponse(BaseModel):
 @router.get("/routes")
 def list_routes(
     source_root: str = ".",
-    user: dict = Depends(get_current_user),
 ) -> ListRoutesResponse:
     """列出项目所有已注册的 API 路由，供前端下拉选择。
 
@@ -137,7 +135,6 @@ def list_routes(
 @router.post("/trace")
 def trace_interface(
     body: TraceRequest,
-    user: dict = Depends(get_current_user),
 ) -> TraceResponse:
     """分析指定接口的代码调用链，生成泳道图。
 

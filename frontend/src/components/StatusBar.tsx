@@ -1,30 +1,24 @@
 import { useAuthStore } from "../stores/auth";
 
 export default function StatusBar() {
-  const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
-  const user = useAuthStore((s) => s.user);
+  const isUnlocked = useAuthStore((s) => s.isUnlocked);
+  const hasPassword = useAuthStore((s) => s.hasPassword);
+
+  const statusLabel = hasPassword
+    ? (isUnlocked ? "已解锁" : "已锁定")
+    : "无锁屏密码";
 
   return (
     <footer className="status-bar">
       {/* ── Left items ── */}
       <div className="status-bar__left">
-        <span className="status-bar__item" title={isLoggedIn ? "后端已连接" : "未登录"}>
+        <span className="status-bar__item" title={statusLabel}>
           <span
-            className={`status-dot status-dot--${isLoggedIn ? "success" : "warning"}`}
+            className={`status-dot status-dot--${isUnlocked || !hasPassword ? "success" : "warning"}`}
             style={{ width: 7, height: 7, marginRight: 6 }}
           />
-          {isLoggedIn ? "已连接" : "未登录"}
+          {statusLabel}
         </span>
-
-        {user && (
-          <span className="status-bar__item" title="当前用户">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}>
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-              <circle cx="12" cy="7" r="4" />
-            </svg>
-            {user.username}
-          </span>
-        )}
       </div>
 
       {/* ── Right items ── */}
