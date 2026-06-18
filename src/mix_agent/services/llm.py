@@ -53,6 +53,19 @@ def _register():
             output_price_per_m=0.28,
         )
 
+    # 从 config/provider_keys.json 加载文件配置（补充/覆盖 env）
+    from mix_agent.services.key_store import load_keys as _load_file_keys
+    for provider, entry in _load_file_keys().items():
+        if provider not in MODEL_REGISTRY:
+            MODEL_REGISTRY[provider] = ModelSpec(
+                provider=provider,
+                model=entry.model or "unknown",
+                base_url=entry.base_url or "",
+                api_key=entry.api_key,
+                input_price_per_m=0.20,
+                output_price_per_m=0.80,
+            )
+
 _register()
 
 

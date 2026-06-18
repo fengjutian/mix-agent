@@ -171,6 +171,7 @@ class AgentState(BaseModel):
     orchestrator_result: dict[str, Any] = Field(default_factory=dict)
     code_review_result: dict[str, Any] = Field(default_factory=dict)
     sql_audit_result: dict[str, Any] = Field(default_factory=dict)
+    auto_fix_result: dict[str, Any] = Field(default_factory=dict)
     summary_result: dict[str, Any] = Field(default_factory=dict)
 
     # Phase 1 工具数据

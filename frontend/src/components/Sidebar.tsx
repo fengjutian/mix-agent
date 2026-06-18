@@ -1,6 +1,6 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { getPendingApprovals, getCostOverview, getModels } from "../api/client";
+import { getPendingApprovals, getCostOverview, getModels, getKeys, getPrompts, getMCPServers } from "../api/client";
 
 /* ── Tasks Panel ── */
 
@@ -19,7 +19,7 @@ function TasksPanel() {
   return (
     <div className="sidebar-panel">
       <div className="sidebar-panel__header">
-        <h3 className="sidebar-panel__title">Tasks</h3>
+        <h3 className="sidebar-panel__title">任务</h3>
       </div>
       <div className="sidebar-panel__body">
         <button
@@ -30,12 +30,12 @@ function TasksPanel() {
             form?.scrollIntoView({ behavior: "smooth" });
           }}
         >
-          + New Audit
+          + 新建审计
         </button>
 
         {recentIds.length > 0 && (
           <>
-            <div className="sidebar-section-label">Recent</div>
+            <div className="sidebar-section-label">最近</div>
             {recentIds.slice(0, 12).map((id) => (
               <button
                 key={id}
@@ -53,7 +53,7 @@ function TasksPanel() {
         )}
 
         {recentIds.length === 0 && (
-          <p className="sidebar-empty">No recent tasks. Create a new audit to get started.</p>
+          <p className="sidebar-empty">暂无最近任务，创建一个新审计开始吧</p>
         )}
       </div>
     </div>
@@ -73,13 +73,13 @@ function ApprovalsPanel() {
   return (
     <div className="sidebar-panel">
       <div className="sidebar-panel__header">
-        <h3 className="sidebar-panel__title">Pending Approvals</h3>
+        <h3 className="sidebar-panel__title">待审批</h3>
         {data && <span className="badge badge--warning">{data.total}</span>}
       </div>
       <div className="sidebar-panel__body">
-        {isLoading && <p className="sidebar-empty">Loading…</p>}
+        {isLoading && <p className="sidebar-empty">加载中…</p>}
         {!isLoading && data && data.items.length === 0 && (
-          <p className="sidebar-empty">Nothing pending.</p>
+          <p className="sidebar-empty">暂无待审批</p>
         )}
         {data?.items.map((item: any) => (
           <button
@@ -109,30 +109,30 @@ function CostPanel() {
     refetchInterval: 60_000,
   });
 
-  if (isLoading) return <p className="sidebar-empty">Loading…</p>;
+  if (isLoading) return <p className="sidebar-empty">加载中…</p>;
   if (!data) return null;
 
   return (
     <div className="sidebar-panel">
       <div className="sidebar-panel__header">
-        <h3 className="sidebar-panel__title">Cost Overview</h3>
+        <h3 className="sidebar-panel__title">成本概览</h3>
       </div>
       <div className="sidebar-panel__body">
         {data.total_tokens !== undefined && (
           <div className="sidebar-stat">
-            <span className="sidebar-stat__label">Total Tokens</span>
+            <span className="sidebar-stat__label">Token 总量</span>
             <span className="sidebar-stat__value">{Number(data.total_tokens).toLocaleString()}</span>
           </div>
         )}
         {data.total_cost !== undefined && (
           <div className="sidebar-stat">
-            <span className="sidebar-stat__label">Est. Cost</span>
+            <span className="sidebar-stat__label">预估成本</span>
             <span className="sidebar-stat__value">${Number(data.total_cost).toFixed(4)}</span>
           </div>
         )}
         {data.task_count !== undefined && (
           <div className="sidebar-stat">
-            <span className="sidebar-stat__label">Total Tasks</span>
+            <span className="sidebar-stat__label">任务总数</span>
             <span className="sidebar-stat__value">{data.task_count}</span>
           </div>
         )}
@@ -156,14 +156,14 @@ function ModelsPanel() {
   return (
     <div className="sidebar-panel">
       <div className="sidebar-panel__header">
-        <h3 className="sidebar-panel__title">Models</h3>
+        <h3 className="sidebar-panel__title">模型</h3>
         <span style={{ fontSize: "0.65rem", color: "var(--text-muted)" }}>
-          {data.models.length} registered
+          {data.models.length} 已注册
         </span>
       </div>
       <div className="sidebar-panel__body">
         {data.models.length === 0 && (
-          <p className="sidebar-empty">No models configured. Set API keys in .env.</p>
+          <p className="sidebar-empty">未配置模型，请在密钥页面添加 API Key</p>
         )}
         {data.models.map((m: any) => (
           <div key={m.provider} className="sidebar-stat">
@@ -176,13 +176,13 @@ function ModelsPanel() {
               </div>
             </div>
             <div style={{ fontSize: "0.65rem", color: "var(--text-muted)", textAlign: "right" }}>
-              ${m.input_price_per_m.toFixed(2)} in
-              <br />${m.output_price_per_m.toFixed(2)} out
+              ${m.input_price_per_m.toFixed(2)} 输入
+              <br />${m.output_price_per_m.toFixed(2)} 输出
             </div>
           </div>
         ))}
 
-        <div className="sidebar-section-label">Node Assignments</div>
+        <div className="sidebar-section-label">节点分配</div>
         {data.nodes.map((n: any) => (
           <div key={n.node} className="sidebar-task-item" style={{ justifyContent: "space-between", cursor: "default" }}>
             <span style={{ fontSize: "0.72rem", fontFamily: "var(--mono)", color: "var(--text-muted)" }}>
@@ -206,6 +206,126 @@ function ModelsPanel() {
   );
 }
 
+/* ── Keys Panel ── */
+
+function KeysPanel() {
+  const { data, isLoading } = useQuery({
+    queryKey: ["keys"],
+    queryFn: getKeys,
+    refetchInterval: 60_000,
+  });
+
+  if (isLoading) return <p className="sidebar-empty">Loading…</p>;
+  if (!data) return null;
+
+  return (
+    <div className="sidebar-panel">
+      <div className="sidebar-panel__header">
+        <h3 className="sidebar-panel__title">API Keys</h3>
+        <span style={{ fontSize: "0.65rem", color: "var(--text-muted)" }}>
+          {data.keys.filter((k: any) => k.has_key).length} configured
+        </span>
+      </div>
+      <div className="sidebar-panel__body">
+        {data.keys.length === 0 && (
+          <p className="sidebar-empty">No keys configured. Add one to enable a provider.</p>
+        )}
+        {data.keys.map((k: any) => (
+          <div key={k.provider} className="sidebar-task-item" style={{ justifyContent: "space-between", cursor: "default" }}>
+            <span style={{ fontSize: "0.82rem", fontWeight: 600, color: "var(--text-heading)" }}>
+              {k.provider}
+            </span>
+            <span
+              className={`badge ${k.has_key ? "badge--success" : "badge--warning"}`}
+              style={{ fontSize: "0.6rem" }}
+            >
+              {k.has_key ? "set" : "empty"}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ── Prompts Panel ── */
+
+function PromptsPanel() {
+  const { data, isLoading } = useQuery({
+    queryKey: ["prompts"],
+    queryFn: getPrompts,
+    refetchInterval: 60_000,
+  });
+
+  if (isLoading) return <p className="sidebar-empty">Loading…</p>;
+  if (!data) return null;
+
+  return (
+    <div className="sidebar-panel">
+      <div className="sidebar-panel__header">
+        <h3 className="sidebar-panel__title">Prompts</h3>
+        <span style={{ fontSize: "0.65rem", color: "var(--text-muted)" }}>
+          {data.prompts.filter((p) => p.overridden).length} edited
+        </span>
+      </div>
+      <div className="sidebar-panel__body">
+        {data.prompts.map((p) => (
+          <div key={p.agent} className="sidebar-task-item" style={{ justifyContent: "space-between", cursor: "default" }}>
+            <span style={{ fontSize: "0.72rem", fontFamily: "var(--mono)", color: "var(--text-muted)" }}>
+              {p.agent}
+            </span>
+            {p.overridden && (
+              <span className="badge badge--warning" style={{ fontSize: "0.6rem" }}>edited</span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ── MCP Servers Panel ── */
+
+function MCPServersPanel() {
+  const { data, isLoading } = useQuery({
+    queryKey: ["mcp-servers"],
+    queryFn: getMCPServers,
+    refetchInterval: 30_000,
+  });
+
+  if (isLoading) return <p className="sidebar-empty">Loading…</p>;
+  if (!data) return null;
+
+  return (
+    <div className="sidebar-panel">
+      <div className="sidebar-panel__header">
+        <h3 className="sidebar-panel__title">MCP Servers</h3>
+        <span style={{ fontSize: "0.65rem", color: "var(--text-muted)" }}>
+          {data.servers.filter((s) => s.enabled).length}/{data.servers.length} active
+        </span>
+      </div>
+      <div className="sidebar-panel__body">
+        {data.servers.length === 0 && (
+          <p className="sidebar-empty">No MCP servers configured.</p>
+        )}
+        {data.servers.map((s) => (
+          <div key={s.name} className="sidebar-task-item" style={{ justifyContent: "space-between", cursor: "default" }}>
+            <span style={{ fontSize: "0.82rem", fontWeight: 600, color: "var(--text-heading)" }}>
+              {s.name}
+            </span>
+            <span
+              className={`badge ${s.enabled ? "badge--success" : "badge--warning"}`}
+              style={{ fontSize: "0.6rem" }}
+            >
+              {s.transport}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* ── Sidebar Root ── */
 
 export default function Sidebar() {
@@ -217,6 +337,9 @@ export default function Sidebar() {
     if (location.pathname.startsWith("/settings")) return <CostPanel />;
     if (location.pathname.startsWith("/tasks/")) return <TasksPanel />;
     if (location.pathname.startsWith("/models")) return <ModelsPanel />;
+    if (location.pathname.startsWith("/keys")) return <KeysPanel />;
+    if (location.pathname.startsWith("/prompts")) return <PromptsPanel />;
+    if (location.pathname.startsWith("/mcp")) return <MCPServersPanel />;
     return <TasksPanel />;
   };
 

@@ -5,11 +5,12 @@ from __future__ import annotations
 import json
 
 from mix_agent.agents.prompts import PromptManager
+from mix_agent.services.prompt_store import prompt_store
 from mix_agent.schemas import AgentState, TaskStatus
 from mix_agent.services.llm import llm_client
 from mix_agent.services.node_config import get_provider
 
-_prompts = PromptManager()
+_prompts = PromptManager(store=prompt_store)
 
 # 确定性规则：文件扩展名 → 强制激活的 Agent
 RULE_MAP = {

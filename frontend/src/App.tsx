@@ -10,7 +10,9 @@ import HomePage from "./pages/Home";
 import TaskDetailPage from "./pages/TaskDetail";
 import ApprovalsPage from "./pages/Approvals";
 import SettingsPage from "./pages/Settings";
-import ModelsPage from "./pages/Models";
+import PromptsPage from "./pages/Prompts";
+import MCPServersPage from "./pages/MCPServers";
+import KeysPage from "./pages/Keys";
 
 const queryClient = new QueryClient();
 
@@ -32,11 +34,11 @@ function Layout({ children }: { children: React.ReactNode }) {
         <div className="site-header__actions">
           {isLoggedIn ? (
             <button onClick={logout} className="btn btn--secondary btn--sm">
-              Logout
+              退出登录
             </button>
           ) : (
             <Link to="/login" className="btn btn--secondary btn--sm">
-              Login
+              登录
             </Link>
           )}
         </div>
@@ -49,11 +51,11 @@ function Layout({ children }: { children: React.ReactNode }) {
         <div className={`sidebar-area${sidebarOpen ? "" : " sidebar-area--collapsed"}`} ref={panelRef}>
           <div className="sidebar-area__inner">
             <div className="sidebar-area__header">
-              <span className="sidebar-area__title">Explorer</span>
+              <span className="sidebar-area__title">资源管理器</span>
               <button
                 className="sidebar-area__collapse-btn"
                 onClick={toggleSidebar}
-                aria-label="Toggle sidebar"
+                aria-label="切换侧边栏"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   {sidebarOpen ? (
@@ -114,6 +116,21 @@ export default function App() {
           <Route path="/models" element={
             <Layout>
               <ProtectedRoute><ModelsPage /></ProtectedRoute>
+            </Layout>
+          } />
+          <Route path="/prompts" element={
+            <Layout>
+              <ProtectedRoute><PromptsPage /></ProtectedRoute>
+            </Layout>
+          } />
+          <Route path="/mcp" element={
+            <Layout>
+              <ProtectedRoute><MCPServersPage /></ProtectedRoute>
+            </Layout>
+          } />
+          <Route path="/keys" element={
+            <Layout>
+              <ProtectedRoute><KeysPage /></ProtectedRoute>
             </Layout>
           } />
         </Routes>

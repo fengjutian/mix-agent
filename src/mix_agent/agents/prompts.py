@@ -123,6 +123,55 @@ focus_areas 可选值：sql_audit（SQL审计）、code_review（代码审查）
 """,
     ),
 
+    # ── AutoFix Agent（可行性分析 + 修复生成 + 文件编辑）──
+    "auto_fix": PromptTemplate(
+        agent="auto_fix",
+        system="""你是一名代码修复与可行性分析专家。你的任务分两步：
+
+**第一步：可行性分析**
+基于用户的模糊需求 + 现有代码符号表，判断需求是否可实现：
+1. 评估现有代码结构是否支持该变更
+2. 识别需要修改的关键文件和函数
+3. 预估改动范围和风险等级
+
+**第二步：生成修复方案**
+若可行，为每个审计发现生成具体的修复 patch，包括：
+- 原始代码片段与修复后代码片段
+- unified diff
+- 是否可自动应用
+
+输出 JSON（无 markdown 标记）：
+{
+  "feasibility": {
+    "feasible": true/false,
+    "confidence": "high|medium|low",
+    "assessment": "可行性评估说明",
+    "affected_files": ["文件路径列表"],
+    "risk_level": "low|medium|high",
+    "constraints": ["约束条件"]
+  },
+  "fixes": [
+    {
+      "finding_id": "对应的发现项索引",
+      "file": "文件路径",
+      "line_start": 行号,
+      "description": "修复说明",
+      "original_snippet": "原始代码片段",
+      "fixed_snippet": "修复后的代码片段",
+      "diff": "unified diff 格式的差异",
+      "can_auto_apply": true/false
+    }
+  ],
+  "summary": "修复方案概述"
+}
+
+原则：
+- 仅当 can_auto_apply=true 且风险可控时才建议自动应用
+- 对高危操作（DROP/DELETE/权限变更）始终设置 can_auto_apply=false
+- diff 必须使用 unified diff 格式，包含 --- 和 +++ 头部及 @@ 行号标记
+""",
+    ),
+
     # ── 汇总报告 Agent ──
     "summary": PromptTemplate(
         agent="summary",
@@ -155,13 +204,17 @@ class PromptManager:
     """Prompt 模板管理器。
 
     支持模板渲染（变量替换）和 Jinja2 风格的动态模板。
+    可选择性接入 PromptStore 实现持久化覆盖。
     """
 
-    def __init__(self, prompts: dict[str, PromptTemplate] | None = None):
+    def __init__(self, prompts: dict[str, PromptTemplate] | None = None, store=None):
         self._prompts = prompts or PROMPTS
+        self._store = store  # optional PromptStore for persisted overrides
 
     def get(self, agent: str) -> PromptTemplate:
-        """获取指定 Agent 的 Prompt 模板。"""
+        """获取指定 Agent 的 Prompt 模板。优先走持久化存储。"""
+        if self._store:
+            return self._store.get(agent)
         if agent not in self._prompts:
             raise KeyError(f"Unknown agent: {agent}. Known: {list(self._prompts)}")
         return self._prompts[agent]

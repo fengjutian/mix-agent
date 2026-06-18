@@ -3,9 +3,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getTask, getFindings, getReport, cancelTask } from "../api/client";
 
 const riskLabel: Record<string, { label: string; badge: string }> = {
-  danger:  { label: "DANGER",  badge: "badge--danger" },
-  warning: { label: "WARNING", badge: "badge--warning" },
-  info:    { label: "INFO",    badge: "badge--info" },
+  danger:  { label: "危险",  badge: "badge--danger" },
+  warning: { label: "警告", badge: "badge--warning" },
+  info:    { label: "信息",    badge: "badge--info" },
 };
 
 const statusBadge: Record<string, string> = {
@@ -32,7 +32,7 @@ export default function TaskDetailPage() {
     },
   });
 
-  if (taskQ.isLoading) return <div className="loading">Loading task...</div>;
+  if (taskQ.isLoading) return <div className="loading">加载任务中...</div>;
   if (taskQ.error) return <div className="error-message">{(taskQ.error as Error).message}</div>;
 
   const task = taskQ.data;
@@ -41,7 +41,7 @@ export default function TaskDetailPage() {
 
   return (
     <div>
-      <h1>Task Detail</h1>
+      <h1>任务详情</h1>
 
       {/* ── Task Info Card ── */}
       <div className="card">
@@ -49,14 +49,14 @@ export default function TaskDetailPage() {
           <span style={{ color: "var(--text-muted)" }}>ID</span>
           <span style={{ fontFamily: "var(--mono)", color: "var(--text-heading)" }}>{task?.task_id}</span>
 
-          <span style={{ color: "var(--text-muted)" }}>Status</span>
+          <span style={{ color: "var(--text-muted)" }}>状态</span>
           <span>
             <span className={`badge ${statusBadge[task?.status ?? ""] || "badge--info"}`}>
               {task?.status}
             </span>
           </span>
 
-          <span style={{ color: "var(--text-muted)" }}>Branch</span>
+          <span style={{ color: "var(--text-muted)" }}>分支</span>
           <span style={{ fontFamily: "var(--mono)", fontSize: "0.85rem" }}>
             {task?.base_branch} → {task?.target_branch}
           </span>
@@ -69,7 +69,7 @@ export default function TaskDetailPage() {
               onClick={() => cancelMutation.mutate()}
               disabled={cancelMutation.isPending}
             >
-              {cancelMutation.isPending ? "Cancelling..." : "Cancel Task"}
+              {cancelMutation.isPending ? "取消中..." : "取消任务"}
             </button>
             {cancelMutation.isError && (
               <span style={{ marginLeft: 12, color: "var(--danger)", fontSize: "0.85rem" }}>
@@ -82,7 +82,7 @@ export default function TaskDetailPage() {
 
       {/* ── Findings ── */}
       <h2 style={{ marginTop: 32 }}>
-        Findings
+        审计发现
         {findingsQ.data?.total != null && (
           <span style={{
             marginLeft: 10,
@@ -95,12 +95,12 @@ export default function TaskDetailPage() {
         )}
       </h2>
 
-      {findingsQ.isLoading && <div className="loading">Loading findings...</div>}
+      {findingsQ.isLoading && <div className="loading">加载审计发现中...</div>}
 
       {!findingsQ.isLoading && findings.length === 0 && (
         <div className="empty-state">
           <div className="empty-state__icon">🔍</div>
-          <p>No findings yet.</p>
+          <p>暂无审计发现</p>
         </div>
       )}
 
@@ -128,7 +128,7 @@ export default function TaskDetailPage() {
       {report && (
         <>
           <div className="divider" />
-          <h2>Report</h2>
+          <h2>审计报告</h2>
           <pre style={{ maxHeight: 420 }}>{JSON.stringify(report, null, 2)}</pre>
         </>
       )}

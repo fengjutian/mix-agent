@@ -5,12 +5,13 @@ from __future__ import annotations
 import json
 
 from mix_agent.agents.prompts import PromptManager
+from mix_agent.services.prompt_store import prompt_store
 from mix_agent.schemas import AgentState
 from mix_agent.services.llm import llm_client
 from mix_agent.services.node_config import get_provider
 from mix_agent.tools.parser.route_scanner import RouteScanner
 
-_prompts = PromptManager()
+_prompts = PromptManager(store=prompt_store)
 
 # 注册 API Path Agent 专用 prompt
 _prompts.register("api_path", type(_prompts.get("code_review"))(

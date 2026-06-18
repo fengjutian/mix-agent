@@ -5,12 +5,13 @@ from __future__ import annotations
 import json
 
 from mix_agent.agents.prompts import PromptManager
+from mix_agent.services.prompt_store import prompt_store
 from mix_agent.schemas import AgentState
 from mix_agent.services.llm import llm_client
 from mix_agent.services.node_config import get_provider
 from mix_agent.tools.security.compliance_checker import ComplianceChecker
 
-_prompts = PromptManager()
+_prompts = PromptManager(store=prompt_store)
 _prompts.register("compliance", type(_prompts.get("summary"))(
     agent="compliance",
     system="""你是一名合规审计专家。审核合规扫描结果并提供整改建议。

@@ -27,7 +27,7 @@ export default function ApprovalsPage() {
     },
   });
 
-  if (isLoading) return <div className="loading">Loading approvals...</div>;
+  if (isLoading) return <div className="loading">加载审批中...</div>;
   if (error) return <div className="error-message">{(error as Error).message}</div>;
 
   const items = data?.items || [];
@@ -35,7 +35,7 @@ export default function ApprovalsPage() {
   return (
     <div>
       <h1>
-        Pending Approvals
+        待审批
         {data?.total != null && (
           <span style={{
             marginLeft: 10,
@@ -51,15 +51,15 @@ export default function ApprovalsPage() {
       {items.length === 0 && (
         <div className="empty-state">
           <div className="empty-state__icon">✅</div>
-          <p>No pending approvals.</p>
+          <p>暂无待审批项</p>
         </div>
       )}
 
       {items.map((item: any, i: number) => (
         <div key={i} className="approval-card">
           <div className="approval-card__meta">
-            <span><strong>Task:</strong> <code>{item.task_id?.slice(0, 14)}...</code></span>
-            <span><strong>Node:</strong> {item.node_name}</span>
+            <span><strong>任务：</strong> <code>{item.task_id?.slice(0, 14)}...</code></span>
+            <span><strong>节点：</strong> {item.node_name}</span>
           </div>
           <p className="approval-card__prompt">{item.prompt}</p>
           <div className="approval-card__actions">
@@ -67,35 +67,35 @@ export default function ApprovalsPage() {
               className="btn btn--ghost btn--sm"
               onClick={() => setExpandedId(expandedId === item.task_id ? null : item.task_id)}
             >
-              {expandedId === item.task_id ? "Collapse" : "Details"}
+              {expandedId === item.task_id ? "收起" : "详情"}
             </button>
             <button
               className="btn btn--primary btn--sm"
               onClick={() => mutation.mutate({ taskId: item.task_id, decision: "approve" })}
               disabled={mutation.isPending}
             >
-              Approve
+              批准
             </button>
             <button
               className="btn btn--danger btn--sm"
               onClick={() => mutation.mutate({ taskId: item.task_id, decision: "reject" })}
               disabled={mutation.isPending}
             >
-              Reject
+              拒绝
             </button>
           </div>
 
           {/* ── Detail drill-down ── */}
           {expandedId === item.task_id && (
             <div style={{ marginTop: 12, padding: "12px 0 0 0", borderTop: "1px solid var(--border)" }}>
-              {detailQ.isLoading && <span style={{ color: "var(--text-muted)" }}>Loading details...</span>}
+              {detailQ.isLoading && <span style={{ color: "var(--text-muted)" }}>加载详情中...</span>}
               {detailQ.isError && (
                 <span style={{ color: "var(--danger)" }}>{(detailQ.error as Error).message}</span>
               )}
               {detailQ.data && (
                 <>
                   <p style={{ margin: "0 0 8px 0", fontSize: "0.85rem", fontWeight: 600 }}>
-                    Danger items ({detailQ.data.context?.danger_count ?? 0}):
+                    高危项 ({detailQ.data.context?.danger_count ?? 0}):
                   </p>
                   {(detailQ.data.context?.items || []).map((ri: any, j: number) => (
                     <div

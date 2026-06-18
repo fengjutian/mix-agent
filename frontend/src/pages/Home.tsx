@@ -61,7 +61,7 @@ export default function HomePage() {
 
   return (
     <div>
-      <h1>New Audit Task</h1>
+      <h1>新建审计任务</h1>
 
       {/* ── Mode toggle ── */}
       <div style={{ display: "flex", gap: 0, marginBottom: 20 }}>
@@ -75,7 +75,7 @@ export default function HomePage() {
           }}
           onClick={() => setMode("agent")}
         >
-          🤖 AI Agent
+          🤖 AI 智能审计
         </button>
         <button
           type="button"
@@ -86,14 +86,14 @@ export default function HomePage() {
           }}
           onClick={() => setMode("scan")}
         >
-          ⚡ Fast Scan
+          ⚡ 快速扫描
         </button>
       </div>
 
       <div className="card">
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label className="form-label">Repository Path</label>
+            <label className="form-label">仓库路径</label>
             <input
               className="form-input"
               value={repo}
@@ -103,7 +103,7 @@ export default function HomePage() {
 
           <div className="form-row">
             <div className="form-group">
-              <label className="form-label">Target Branch</label>
+              <label className="form-label">目标分支</label>
               <input
                 className="form-input"
                 value={target}
@@ -111,7 +111,7 @@ export default function HomePage() {
               />
             </div>
             <div className="form-group">
-              <label className="form-label">Base Branch</label>
+              <label className="form-label">基准分支</label>
               <input
                 className="form-input"
                 value={base}
@@ -122,9 +122,9 @@ export default function HomePage() {
 
           <div className="form-group">
             <label className="form-label">
-              {mode === "agent" ? "Natural Language Description" : "Description"}
+              {mode === "agent" ? "自然语言描述" : "描述"}
               <span style={{ fontWeight: 400, color: "var(--text-muted)" }}>
-                {mode === "agent" ? " (LLM 理解模糊需求)" : " (optional)"}
+                {mode === "agent" ? " (LLM 理解模糊需求)" : " (可选)"}
               </span>
             </label>
             <input
@@ -134,7 +134,7 @@ export default function HomePage() {
               placeholder={
                 mode === "agent"
                   ? "e.g. 重点检查用户模块的 SQL 注入和权限问题"
-                  : "e.g. Check user module SQL security"
+                  : "例如：检查用户模块 SQL 安全性"
               }
             />
           </div>
@@ -146,11 +146,11 @@ export default function HomePage() {
           >
             {loading
               ? mode === "agent"
-                ? "AI Analyzing..."
-                : "Scanning..."
+                ? "AI 分析中..."
+                : "扫描中..."
               : mode === "agent"
-                ? "Start AI Audit"
-                : "Start Scan"}
+                ? "开始 AI 审计"
+                : "开始扫描"}
           </button>
         </form>
       </div>
@@ -162,7 +162,7 @@ export default function HomePage() {
             <div className="result-banner result-banner--error">{result.error}</div>
           ) : (
             <div className="result-banner result-banner--success">
-              Task created: <strong>{result.task_id}</strong> — Status:{" "}
+              Task created: <strong>{result.task_id}</strong> — 状态：{" "}
               <span
                 className={`badge ${
                   result.status === "awaiting_approval" ? "badge--warning" : "badge--info"
@@ -271,7 +271,7 @@ export default function HomePage() {
 
               {agentDetail.result.summary_result.top_recommendations?.length > 0 && (
                 <div style={{ marginTop: 12 }}>
-                  <strong style={{ fontSize: "0.85rem" }}>Top Recommendations:</strong>
+                  <strong style={{ fontSize: "0.85rem" }}>首要建议：</strong>
                   <ul style={{ margin: "4px 0 0 0", paddingLeft: 20, fontSize: "0.85rem" }}>
                     {agentDetail.result.summary_result.top_recommendations.map((r: string, i: number) => (
                       <li key={i}>{r}</li>
@@ -326,7 +326,7 @@ export default function HomePage() {
           {/* Token usage */}
           {agentDetail.result.accumulated_tokens > 0 && (
             <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", textAlign: "right" }}>
-              💰 LLM tokens used: {agentDetail.result.accumulated_tokens.toLocaleString()}
+              💰 LLM Token 用量：{agentDetail.result.accumulated_tokens.toLocaleString()}
             </div>
           )}
         </div>

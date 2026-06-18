@@ -16,7 +16,7 @@ export default function LoginPage() {
       await login(username, password);
       navigate("/");
     } catch (err: any) {
-      setError(err.message || "Login failed");
+      setError(err.message || "登录失败");
     }
   };
 
@@ -52,11 +52,11 @@ export default function LoginPage() {
           </div>
 
           <div className="card">
-            <h2 style={{ textAlign: "center", marginTop: 0 }}>Sign In</h2>
+            <h2 style={{ textAlign: "center", marginTop: 0 }}>登录</h2>
 
             <form onSubmit={handleSubmit}>
               <div className="form-group">
-                <label className="form-label">Username</label>
+                <label className="form-label">用户名</label>
                 <input
                   className="form-input"
                   value={username}
@@ -67,7 +67,7 @@ export default function LoginPage() {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Password</label>
+                <label className="form-label">密码</label>
                 <input
                   className="form-input"
                   type="password"
@@ -79,7 +79,7 @@ export default function LoginPage() {
               {error && <div className="error-message" style={{ marginBottom: 16 }}>{error}</div>}
 
               <button type="submit" className="btn btn--primary btn--lg btn--block">
-                Sign In
+                登录
               </button>
             </form>
           </div>

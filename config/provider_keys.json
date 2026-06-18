@@ -1,0 +1,12 @@
+{
+  "minimax": {
+    "api_key": "",
+    "base_url": "https://api.minimax.chat/v1",
+    "model": "MiniMax-Text-01"
+  },
+  "deepseek": {
+    "api_key": "",
+    "base_url": "https://api.deepseek.com/v1",
+    "model": "deepseek-chat"
+  }
+}

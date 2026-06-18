@@ -10,7 +10,7 @@ export default function SettingsPage() {
 
   return (
     <div>
-      <h1>Cost Dashboard</h1>
+      <h1>成本概览</h1>
 
       {/* ── Overview Stats ── */}
       {overview && (
@@ -20,12 +20,12 @@ export default function SettingsPage() {
           gap: 14,
           marginBottom: 32,
         }}>
-          <StatCard label="Total Cost" value={`$${overview.total_cost}`} />
-          <StatCard label="Total Calls" value={overview.total_calls?.toLocaleString()} />
-          <StatCard label="Prompt Tokens" value={overview.total_prompt_tokens?.toLocaleString()} />
-          <StatCard label="Completion Tokens" value={overview.total_completion_tokens?.toLocaleString()} />
+          <StatCard label="总成本" value={`$${overview.total_cost}`} />
+          <StatCard label="总调用次数" value={overview.total_calls?.toLocaleString()} />
+          <StatCard label="提示 Token" value={overview.total_prompt_tokens?.toLocaleString()} />
+          <StatCard label="补全 Token" value={overview.total_completion_tokens?.toLocaleString()} />
           <StatCard
-            label="Active Tasks"
+            label="活跃任务"
             value={`${overview.active_tasks} / ${overview.total_tasks}`}
           />
         </div>
@@ -34,16 +34,16 @@ export default function SettingsPage() {
       {/* ── Breakdown Table ── */}
       {breakdown && (
         <div className="card">
-          <h2 style={{ marginTop: 0 }}>By Task</h2>
+          <h2 style={{ marginTop: 0 }}>按任务</h2>
           <div className="divider" style={{ margin: "12px 0 0" }} />
           <div className="table-wrapper">
             <table>
               <thead>
                 <tr>
-                  <th>Task</th>
-                  <th style={{ textAlign: "right" }}>Cost</th>
-                  <th style={{ textAlign: "right" }}>Calls</th>
-                  <th style={{ textAlign: "right" }}>Usage</th>
+                  <th>任务</th>
+                  <th style={{ textAlign: "right" }}>成本</th>
+                  <th style={{ textAlign: "right" }}>调用</th>
+                  <th style={{ textAlign: "right" }}>用量</th>
                 </tr>
               </thead>
               <tbody>
@@ -72,7 +72,7 @@ export default function SettingsPage() {
                   <tr>
                     <td colSpan={4}>
                       <div className="empty-state" style={{ padding: "32px 0" }}>
-                        <p>No tasks yet</p>
+                        <p>暂无任务</p>
                       </div>
                     </td>
                   </tr>
@@ -83,7 +83,7 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {overviewQ.isLoading && <div className="loading">Loading cost data...</div>}
+      {overviewQ.isLoading && <div className="loading">加载成本数据中...</div>}
       {overviewQ.error && <div className="error-message">{(overviewQ.error as Error).message}</div>}
     </div>
   );

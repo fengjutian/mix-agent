@@ -30,14 +30,14 @@ export default function DiffViewer({
         padding: "12px 16px",
         borderBottom: "1px solid var(--border)",
       }}>
-        <h4 style={{ margin: 0, fontSize: "0.92rem" }}>Diff View</h4>
+        <h4 style={{ margin: 0, fontSize: "0.92rem" }}>差异对比</h4>
         {onApply && (
           <button
             onClick={handleApply}
             disabled={applied}
             className={applied ? "btn btn--secondary btn--sm" : "btn btn--primary btn--sm"}
           >
-            {applied ? "Applied ✓" : "Apply Fix"}
+            {applied ? "已应用 ✓" : "应用修复"}
           </button>
         )}
       </div>

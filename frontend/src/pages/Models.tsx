@@ -19,8 +19,8 @@ export default function ModelsPage() {
 
   const [feedback, setFeedback] = useState<{ node: string; ok: boolean } | null>(null);
 
-  if (isLoading) return <div className="loading">Loading models…</div>;
-  if (error) return <div className="error-message">Failed to load model config.</div>;
+  if (isLoading) return <div className="loading">加载模型配置中…</div>;
+  if (error) return <div className="error-message">加载模型配置失败</div>;
   if (!data) return null;
 
   const handleAssign = async (node: string, provider: string) => {
@@ -35,18 +35,18 @@ export default function ModelsPage() {
 
   return (
     <div>
-      <h1>Model Configuration</h1>
+      <h1>模型配置</h1>
       <p style={{ color: "var(--text-muted)", marginBottom: 24 }}>
-        Assign each agent node to a registered LLM provider. Changes take effect immediately.
+        为每个 Agent 节点分配已注册的 LLM 提供商。修改立即生效。
       </p>
 
       {/* Registered models */}
       <div className="card" style={{ marginBottom: 20 }}>
         <div className="card__header">
-          <h3 style={{ margin: 0 }}>Registered Providers</h3>
+          <h3 style={{ margin: 0 }}>已注册的提供商</h3>
         </div>
         {data.models.length === 0 && (
-          <p className="empty-state">No models registered. Set API keys in .env.</p>
+          <p className="empty-state">未注册模型，请在密钥页面添加 API Key</p>
         )}
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {data.models.map((m) => (
@@ -69,7 +69,7 @@ export default function ModelsPage() {
                 </span>
               </div>
               <div style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
-                ${m.input_price_per_m.toFixed(2)} / ${m.output_price_per_m.toFixed(2)} per 1M tokens
+                ${m.input_price_per_m.toFixed(2)} / ${m.output_price_per_m.toFixed(2)} / 百万 Token
               </div>
             </div>
           ))}
@@ -79,19 +79,19 @@ export default function ModelsPage() {
       {/* Node assignments */}
       <div className="card">
         <div className="card__header">
-          <h3 style={{ margin: 0 }}>Agent Node Assignments</h3>
+          <h3 style={{ margin: 0 }}>Agent 节点分配</h3>
           <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-            {data.nodes.filter((n) => n.overridden).length} overridden
+            {data.nodes.filter((n) => n.overridden).length} 已覆盖
           </span>
         </div>
         <div className="table-wrapper">
           <table>
             <thead>
               <tr>
-                <th>Node</th>
-                <th>Current Provider</th>
-                <th>Model</th>
-                <th style={{ width: 180 }}>Switch To</th>
+                <th>节点</th>
+                <th>当前提供商</th>
+                <th>模型</th>
+                <th style={{ width: 180 }}>切换到</th>
               </tr>
             </thead>
             <tbody>
@@ -104,7 +104,7 @@ export default function ModelsPage() {
                         className="badge badge--warning"
                         style={{ marginLeft: 8, fontSize: "0.65rem" }}
                       >
-                        edited
+                        已修改
                       </span>
                     )}
                   </td>

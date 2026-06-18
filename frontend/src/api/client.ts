@@ -40,7 +40,7 @@ async function request<T>(path: string, opts?: RequestInit): Promise<T> {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ refresh_token: _refreshToken }),
       });
-      if (!refreshRes.ok) throw new Error("refresh failed");
+      if (!refreshRes.ok) throw new Error("刷新令牌失败");
       const data = await refreshRes.json();
       setToken(data.access_token);
       setRefreshToken(data.refresh_token);
@@ -55,7 +55,7 @@ async function request<T>(path: string, opts?: RequestInit): Promise<T> {
       // Refresh failed — clear tokens and reject
       setToken(null);
       setRefreshToken(null);
-      throw new Error("401: Session expired, please login again");
+      throw new Error("401：会话已过期，请重新登录");
     }
   }
 
@@ -202,5 +202,115 @@ export function assignModel(node: string, provider: string) {
   return request<{ ok: boolean; error?: string }>("/admin/models/assign", {
     method: "PUT",
     body: JSON.stringify({ node, provider }),
+  });
+}
+
+// ── Prompts ──
+
+export function getPrompts() {
+  return request<{
+    prompts: Array<{
+      agent: string;
+      system: string;
+      user_template: string;
+      overridden: boolean;
+    }>;
+  }>("/admin/prompts");
+}
+
+export function updatePrompt(agent: string, system?: string, user_template?: string) {
+  return request<{ ok: boolean; agent: string; error?: string }>(`/admin/prompts/${agent}`, {
+    method: "PUT",
+    body: JSON.stringify({ system: system ?? null, user_template: user_template ?? null }),
+  });
+}
+
+export function resetPrompt(agent: string) {
+  return request<{ ok: boolean; agent: string; message?: string; error?: string }>(
+    `/admin/prompts/${agent}`,
+    { method: "DELETE" }
+  );
+}
+
+// ── MCP Servers ──
+
+export function getMCPServers() {
+  return request<{
+    servers: Array<{
+      name: string;
+      transport: string;
+      enabled: boolean;
+      command: string;
+      args: string[];
+      env: Record<string, string>;
+      url: string;
+      headers: Record<string, string>;
+    }>;
+  }>("/admin/mcp/servers");
+}
+
+export function addMCPServer(cfg: {
+  name: string;
+  transport: string;
+  enabled?: boolean;
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  url?: string;
+  headers?: Record<string, string>;
+}) {
+  return request<{ ok: boolean; server?: any; error?: string }>("/admin/mcp/servers", {
+    method: "POST",
+    body: JSON.stringify(cfg),
+  });
+}
+
+export function updateMCPServer(name: string, updates: Record<string, any>) {
+  return request<{ ok: boolean; server?: any; error?: string }>(`/admin/mcp/servers/${name}`, {
+    method: "PUT",
+    body: JSON.stringify(updates),
+  });
+}
+
+export function deleteMCPServer(name: string) {
+  return request<{ ok: boolean; name?: string; error?: string }>(`/admin/mcp/servers/${name}`, {
+    method: "DELETE",
+  });
+}
+
+export function testMCPServer(name: string) {
+  return request<{
+    ok: boolean;
+    server_name: string;
+    server_version: string;
+    tools: Array<{ name: string; description: string; input_schema: any }>;
+    error: string;
+  }>(`/admin/mcp/servers/${name}/test`, { method: "POST" });
+}
+
+// ── API Keys ──
+export function getKeys() {
+  return request<{
+    keys: Array<{
+      provider: string;
+      api_key_masked: string;
+      has_key: boolean;
+      base_url: string;
+      model: string;
+    }>;
+  }>("/admin/keys");
+}
+
+export function setKey(provider: string, api_key: string, base_url?: string, model?: string) {
+  return request<{ ok: boolean; provider: string; error?: string }>("/admin/keys", {
+    method: "PUT",
+    body: JSON.stringify({ provider, api_key, base_url, model }),
+  });
+}
+
+export function deleteKey(provider: string) {
+  return request<{ ok: boolean; provider: string; error?: string }>("/admin/keys", {
+    method: "DELETE",
+    body: JSON.stringify({ provider }),
   });
 }
