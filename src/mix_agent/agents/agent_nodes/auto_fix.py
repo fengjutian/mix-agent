@@ -9,6 +9,7 @@ import tempfile
 from mix_agent.agents.prompts import PromptManager
 from mix_agent.schemas import AgentState
 from mix_agent.services.llm import llm_client
+from mix_agent.services.node_config import get_provider
 
 _prompts = PromptManager()
 _prompts.register("auto_fix", type(_prompts.get("code_review"))(
@@ -62,7 +63,7 @@ async def auto_fix_node(state: AgentState) -> dict:
     fixes: list[dict] = []
     try:
         resp = await llm_client.chat_with_prompt(
-            provider="deepseek",
+            provider=get_provider("auto_fix"),
             system_prompt=prompt.system,
             user_message=json.dumps(all_findings[:10], ensure_ascii=False, default=str),
             temperature=0.2,

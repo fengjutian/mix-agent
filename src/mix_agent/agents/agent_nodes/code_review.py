@@ -7,6 +7,7 @@ import json
 from mix_agent.agents.prompts import PromptManager
 from mix_agent.schemas import AgentState
 from mix_agent.services.llm import llm_client
+from mix_agent.services.node_config import get_provider
 from mix_agent.tools.parser.ast_analyzer import ASTAnalyzer
 
 _prompts = PromptManager()
@@ -64,7 +65,7 @@ async def code_review_node(state: AgentState) -> dict:
     prompt = _prompts.get("code_review")
     try:
         resp = await llm_client.chat_with_prompt(
-            provider="deepseek",
+            provider=get_provider("code_review"),
             system_prompt=prompt.system,
             user_message=f"以下是变更文件的符号表摘要：\n\n{symbol_summary[:3000]}",
             temperature=0.3,

@@ -10,6 +10,7 @@ import HomePage from "./pages/Home";
 import TaskDetailPage from "./pages/TaskDetail";
 import ApprovalsPage from "./pages/Approvals";
 import SettingsPage from "./pages/Settings";
+import ModelsPage from "./pages/Models";
 
 const queryClient = new QueryClient();
 
@@ -108,6 +109,11 @@ export default function App() {
           <Route path="/settings" element={
             <Layout>
               <ProtectedRoute><SettingsPage /></ProtectedRoute>
+            </Layout>
+          } />
+          <Route path="/models" element={
+            <Layout>
+              <ProtectedRoute><ModelsPage /></ProtectedRoute>
             </Layout>
           } />
         </Routes>

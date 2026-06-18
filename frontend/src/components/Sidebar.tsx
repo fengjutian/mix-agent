@@ -141,6 +141,71 @@ function CostPanel() {
   );
 }
 
+/* ── Models Panel ── */
+
+function ModelsPanel() {
+  const { data, isLoading } = useQuery({
+    queryKey: ["models"],
+    queryFn: getModels,
+    refetchInterval: 60_000,
+  });
+
+  if (isLoading) return <p className="sidebar-empty">Loading…</p>;
+  if (!data) return null;
+
+  return (
+    <div className="sidebar-panel">
+      <div className="sidebar-panel__header">
+        <h3 className="sidebar-panel__title">Models</h3>
+        <span style={{ fontSize: "0.65rem", color: "var(--text-muted)" }}>
+          {data.models.length} registered
+        </span>
+      </div>
+      <div className="sidebar-panel__body">
+        {data.models.length === 0 && (
+          <p className="sidebar-empty">No models configured. Set API keys in .env.</p>
+        )}
+        {data.models.map((m: any) => (
+          <div key={m.provider} className="sidebar-stat">
+            <div>
+              <div style={{ fontWeight: 600, color: "var(--text-heading)", fontSize: "0.82rem" }}>
+                {m.provider}
+              </div>
+              <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", fontFamily: "var(--mono)" }}>
+                {m.model}
+              </div>
+            </div>
+            <div style={{ fontSize: "0.65rem", color: "var(--text-muted)", textAlign: "right" }}>
+              ${m.input_price_per_m.toFixed(2)} in
+              <br />${m.output_price_per_m.toFixed(2)} out
+            </div>
+          </div>
+        ))}
+
+        <div className="sidebar-section-label">Node Assignments</div>
+        {data.nodes.map((n: any) => (
+          <div key={n.node} className="sidebar-task-item" style={{ justifyContent: "space-between", cursor: "default" }}>
+            <span style={{ fontSize: "0.72rem", fontFamily: "var(--mono)", color: "var(--text-muted)" }}>
+              {n.node}
+            </span>
+            <span
+              style={{
+                fontSize: "0.7rem",
+                fontWeight: 600,
+                color: n.model === "unknown" ? "var(--warning)" : "var(--accent)",
+                fontFamily: "var(--mono)",
+              }}
+            >
+              {n.provider}
+              {n.overridden && " *"}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* ── Sidebar Root ── */
 
 export default function Sidebar() {
@@ -151,6 +216,7 @@ export default function Sidebar() {
     if (location.pathname.startsWith("/approvals")) return <ApprovalsPanel />;
     if (location.pathname.startsWith("/settings")) return <CostPanel />;
     if (location.pathname.startsWith("/tasks/")) return <TasksPanel />;
+    if (location.pathname.startsWith("/models")) return <ModelsPanel />;
     return <TasksPanel />;
   };
 

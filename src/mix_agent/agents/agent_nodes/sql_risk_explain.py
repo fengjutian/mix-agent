@@ -7,6 +7,7 @@ import json
 from mix_agent.agents.prompts import PromptManager
 from mix_agent.schemas import AgentState, ApprovalRequest, TaskStatus
 from mix_agent.services.llm import llm_client
+from mix_agent.services.node_config import get_provider
 from mix_agent.tools.security.sql_guard import SQLGuard, RiskLevel
 
 _prompts = PromptManager()
@@ -57,7 +58,7 @@ async def sql_risk_explain_node(state: AgentState) -> dict:
     if danger_items:
         try:
             resp = await llm_client.chat_with_prompt(
-                provider="deepseek",
+                provider=get_provider("sql_risk_explain"),
                 system_prompt=_prompts.get("sql_risk_explain").system,
                 user_message=json.dumps({"audit_results": danger_items}, ensure_ascii=False),
                 temperature=0.2,

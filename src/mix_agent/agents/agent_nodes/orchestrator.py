@@ -7,6 +7,7 @@ import json
 from mix_agent.agents.prompts import PromptManager
 from mix_agent.schemas import AgentState, TaskStatus
 from mix_agent.services.llm import llm_client
+from mix_agent.services.node_config import get_provider
 
 _prompts = PromptManager()
 
@@ -54,7 +55,7 @@ async def orchestrator_node(state: AgentState) -> dict:
         prompt = _prompts.get("orchestrator")
         try:
             resp = await llm_client.chat_with_prompt(
-                provider="deepseek",
+                provider=get_provider("orchestrator"),
                 system_prompt=prompt.system,
                 user_message=json.dumps({
                     "parse_result": parse_result,

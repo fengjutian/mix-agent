@@ -7,6 +7,7 @@ import json
 from mix_agent.agents.prompts import PromptManager
 from mix_agent.schemas import AgentState
 from mix_agent.services.llm import llm_client
+from mix_agent.services.node_config import get_provider
 from mix_agent.tools.security.compliance_checker import ComplianceChecker
 
 _prompts = PromptManager()
@@ -76,7 +77,7 @@ async def compliance_node(state: AgentState) -> dict:
     llm_findings: list[dict] = []
     try:
         resp = await llm_client.chat_with_prompt(
-            provider="deepseek",
+            provider=get_provider("compliance"),
             system_prompt=_prompts.get("compliance").system,
             user_message=json.dumps(violations_data[:20], ensure_ascii=False),
             temperature=0.2,

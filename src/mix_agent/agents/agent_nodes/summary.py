@@ -7,6 +7,7 @@ import json
 from mix_agent.agents.prompts import PromptManager
 from mix_agent.schemas import AgentState, TaskStatus
 from mix_agent.services.llm import llm_client
+from mix_agent.services.node_config import get_provider
 
 _prompts = PromptManager()
 
@@ -53,7 +54,7 @@ async def summary_node(state: AgentState) -> dict:
     prompt = _prompts.get("summary")
     try:
         resp = await llm_client.chat_with_prompt(
-            provider="deepseek",
+            provider=get_provider("summary"),
             system_prompt=prompt.system,
             user_message=json.dumps(user_context, ensure_ascii=False, default=str)[:4000],
             temperature=0.3,

@@ -7,6 +7,7 @@ import json
 from mix_agent.agents.prompts import PromptManager
 from mix_agent.schemas import AgentState, TaskStatus
 from mix_agent.services.llm import llm_client, CostTracker
+from mix_agent.services.node_config import get_provider
 
 
 _prompts = PromptManager()
@@ -21,7 +22,7 @@ async def parse_requirement_node(state: AgentState) -> dict:
 
     try:
         resp = await llm_client.chat_with_prompt(
-            provider="minimax",
+            provider=get_provider("parse_requirement"),
             system_prompt=prompt.system,
             user_message=state.task_description or "请分析代码变更的安全性",
             temperature=0.3,

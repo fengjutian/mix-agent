@@ -7,6 +7,7 @@ import json
 from mix_agent.agents.prompts import PromptManager
 from mix_agent.schemas import AgentState
 from mix_agent.services.llm import llm_client
+from mix_agent.services.node_config import get_provider
 from mix_agent.tools.parser.route_scanner import RouteScanner
 
 _prompts = PromptManager()
@@ -102,7 +103,7 @@ async def api_path_node(state: AgentState) -> dict:
     llm_findings: list[dict] = []
     try:
         resp = await llm_client.chat_with_prompt(
-            provider="deepseek",
+            provider=get_provider("api_path"),
             system_prompt=_prompts.get("api_path").system,
             user_message=json.dumps({
                 "routes": all_routes[:50],

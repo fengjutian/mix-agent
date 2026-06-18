@@ -179,3 +179,28 @@ export function getCostOverview() {
 export function getCostBreakdown() {
   return request<{ tasks: any[] }>("/admin/cost/breakdown");
 }
+
+export function getModels() {
+  return request<{
+    models: Array<{
+      provider: string;
+      model: string;
+      base_url: string;
+      input_price_per_m: number;
+      output_price_per_m: number;
+    }>;
+    nodes: Array<{
+      node: string;
+      provider: string;
+      model: string;
+      overridden: boolean;
+    }>;
+  }>("/admin/models");
+}
+
+export function assignModel(node: string, provider: string) {
+  return request<{ ok: boolean; error?: string }>("/admin/models/assign", {
+    method: "PUT",
+    body: JSON.stringify({ node, provider }),
+  });
+}
