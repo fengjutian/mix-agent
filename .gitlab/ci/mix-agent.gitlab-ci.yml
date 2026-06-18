@@ -1,0 +1,46 @@
+# GitLab CI/CD 模板 — 在 MR 中自动运行 mix-agent 安全审计
+#
+# 使用方式：
+#   在项目根目录 .gitlab-ci.yml 中：
+#     include:
+#       - local: '.gitlab/ci/mix-agent.gitlab-ci.yml'
+#
+# 或者在项目 CI 配置中直接 include 此文件。
+
+stages:
+  - security-scan
+
+mix-agent-scan:
+  stage: security-scan
+  image: python:3.11-slim
+  variables:
+    PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  cache:
+    paths:
+      - .cache/pip
+      - ~/.cache/pypoetry
+  before_script:
+    - pip install poetry
+    - poetry config virtualenvs.create false
+    - poetry install --no-interaction --no-ansi
+  script:
+    - |
+      # 获取 MR 的 target 和 source 分支
+      TARGET_BRANCH="${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-main}"
+      SOURCE_BRANCH="${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME:-HEAD}"
+      echo "Scanning ${TARGET_BRANCH}...${SOURCE_BRANCH}"
+      poetry run mix-agent scan \
+        --repo "$CI_PROJECT_DIR" \
+        --target "$SOURCE_BRANCH" \
+        --base "$TARGET_BRANCH" \
+        --format json > security-report.json
+  artifacts:
+    paths:
+      - security-report.json
+    expire_in: 30 days
+    reports:
+      # 可选：自定义 GitLab 安全报告格式
+      # sast: security-report.json
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "main"

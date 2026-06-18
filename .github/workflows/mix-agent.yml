@@ -1,0 +1,77 @@
+# GitHub Actions — 在 PR 和 push 时自动运行 mix-agent 安全审计
+#
+# 使用方式：将此文件复制到 .github/workflows/mix-agent.yml
+
+name: mix-agent Security Scan
+
+on:
+  pull_request:
+    branches: [main, master, develop]
+  push:
+    branches: [main, master]
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 获取完整历史以支持 git diff
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install poetry
+          poetry config virtualenvs.create false
+          poetry install --no-interaction
+
+      - name: Run mix-agent scan
+        id: scan
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            TARGET="${{ github.event.pull_request.head.sha }}"
+            BASE="${{ github.event.pull_request.base.sha }}"
+          else
+            TARGET="HEAD"
+            BASE="HEAD~1"
+          fi
+          poetry run mix-agent scan \
+            --repo . \
+            --target "$TARGET" \
+            --base "$BASE" \
+            --format json > security-report.json
+
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-report
+          path: security-report.json
+
+      - name: Comment PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = JSON.parse(fs.readFileSync('security-report.json', 'utf8'));
+            const danger = report.danger_count || 0;
+            const warning = report.warning_count || 0;
+            const emoji = danger > 0 ? '🔴' : warning > 0 ? '🟡' : '🟢';
+            const body = `## ${emoji} mix-agent Security Scan\n\n` +
+              `| | Count |\n|---|---|\n` +
+              `| 🔴 Danger | ${danger} |\n` +
+              `| 🟡 Warning | ${warning} |\n` +
+              `| Changed Files | ${report.changed_files?.length || 0} |\n\n` +
+              `Full report: [security-report.json](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID})`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });

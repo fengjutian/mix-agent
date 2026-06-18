@@ -1,0 +1,109 @@
+# OWASP Top 10 (2021) 合规规则
+# 每条规则: id, category, severity, patterns, description
+
+rules:
+  - id: OWASP-A01
+    category: "Broken Access Control"
+    severity: danger
+    description: "检测未鉴权的 API 端点和管理功能"
+    patterns:
+      - type: route_no_auth
+        keywords: ["admin", "delete", "config", "manage"]
+      - type: file_content
+        keywords: ["def admin", "def manage"]
+
+  - id: OWASP-A02
+    category: "Cryptographic Failures"
+    severity: danger
+    description: "检测明文密码、弱加密算法"
+    patterns:
+      - type: file_content
+        keywords: ["md5(", "sha1(", "base64.encode"]
+      - type: regex
+        pattern: "(?i)(password|secret|key)\\s*=\\s*[\"'][^\"']{1,30}[\"']"
+
+  - id: OWASP-A03
+    category: "Injection"
+    severity: danger
+    description: "检测 SQL 注入、命令注入风险"
+    patterns:
+      - type: file_content
+        keywords: ["f-string", ".format(", "%s", "exec(", "eval(", "os.system(", "subprocess.call("]
+      - type: regex
+        pattern: "(?i)(execute|executemany)\\s*\\(\\s*f[\"']"
+
+  - id: OWASP-A04
+    category: "Insecure Design"
+    severity: warning
+    description: "检测缺少输入校验、速率限制"
+    patterns:
+      - type: route_no_auth
+        keywords: ["/api/", "/login", "/register"]
+      - type: missing_pattern
+        pattern: "Depends\\(get_current_user\\)"
+
+  - id: OWASP-A05
+    category: "Security Misconfiguration"
+    severity: warning
+    description: "检测调试模式、详细错误信息泄露"
+    patterns:
+      - type: file_content
+        keywords: ["debug=True", "DEBUG = True", "ALLOWED_HOSTS = [\"*\"]", "CORS_ORIGINS = [\"*\"]"]
+      - type: file_content
+        keywords: [".env", "SECRET_KEY", "API_KEY"]
+
+  - id: OWASP-A06
+    category: "Vulnerable Components"
+    severity: warning
+    description: "检测过时依赖（通过 pyproject.toml / package.json）"
+    patterns:
+      - type: file_check
+        files: ["pyproject.toml", "package.json", "requirements.txt"]
+
+  - id: OWASP-A07
+    category: "Identification Failures"
+    severity: danger
+    description: "检测弱认证、会话固定"
+    patterns:
+      - type: missing_pattern
+        pattern: "JWT_SECRET"
+      - type: file_content
+        keywords: ["JWT_SECRET = \"change-me\"", "JWT_SECRET = 'dev'"]
+
+  - id: OWASP-A08
+    category: "Software Integrity Failures"
+    severity: warning
+    description: "检测缺少签名验证的依赖更新"
+    patterns:
+      - type: file_check
+        files: [".github/workflows", ".gitlab-ci.yml", "Dockerfile"]
+
+  - id: GDPR-01
+    category: "GDPR Data Protection"
+    severity: danger
+    description: "检测明文日志中的个人信息、未加密的用户数据"
+    patterns:
+      - type: file_content
+        keywords: ["logger.info(user", "print(user", "logging.info(password"]
+      - type: regex
+        pattern: "(?i)(email|phone|address|ssn|passport)\\s*[:=]"
+
+  - id: PCI-DSS-01
+    category: "PCI-DSS Cardholder Data"
+    severity: danger
+    description: "检测信用卡号、CVV 等支付信息泄露"
+    patterns:
+      - type: regex
+        pattern: "\\b[0-9]{13,19}\\b"  # 可能的卡号长度
+      - type: file_content
+        keywords: ["credit_card", "card_number", "cvv", "stripe_key"]
+
+  - id: CN-EQ-01
+    category: "等保 2.0 访问控制"
+    severity: danger
+    description: "检测缺少访问控制、审计日志"
+    patterns:
+      - type: missing_pattern
+        pattern: "audit_operation_log"
+      - type: route_no_auth
+        keywords: ["/admin"]
