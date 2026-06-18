@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { DiffEditor } from "@monaco-editor/react";
+import { MIX_AGENT_DARK, registerMixAgentTheme } from "../monacoTheme";
 
 interface DiffViewerProps {
   original: string;
@@ -46,7 +47,8 @@ export default function DiffViewer({
         language={language}
         original={original}
         modified={modified}
-        theme="vs-dark"
+        theme={MIX_AGENT_DARK}
+        beforeMount={registerMixAgentTheme}
         options={{
           readOnly: true,
           minimap: { enabled: false },
@@ -54,6 +56,8 @@ export default function DiffViewer({
           lineNumbers: "on" as any,
           scrollBeyondLastLine: false,
           renderSideBySide: true,
+          // 增强 diff 内联差异高亮
+          renderIndicators: true,
         } as any}
       />
     </div>

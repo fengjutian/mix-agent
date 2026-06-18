@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import Editor from "@monaco-editor/react";
+import { MIX_AGENT_DARK, registerMixAgentTheme } from "../monacoTheme";
 import {
   listBranches,
   checkoutBranch,
@@ -516,7 +517,8 @@ export default function ReviewPage() {
                         height="calc(100vh - 420px)"
                         language="diff"
                         value={commitDetail.raw_diff}
-                        theme="vs-dark"
+                        theme={MIX_AGENT_DARK}
+                        beforeMount={registerMixAgentTheme}
                         options={{
                           readOnly: true,
                           minimap: { enabled: false },
@@ -524,6 +526,8 @@ export default function ReviewPage() {
                           lineNumbers: "on",
                           scrollBeyondLastLine: false,
                           wordWrap: "on",
+                          // 统一 diff 着色
+                          renderWhitespace: "none",
                         }}
                       />
                     ) : (
