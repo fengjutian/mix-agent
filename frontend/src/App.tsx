@@ -18,11 +18,12 @@ import KeysPage from "./pages/Keys";
 import TracePage from "./pages/Trace";
 import ModelsPage from "./pages/Models";
 import ReviewPage from "./pages/Review";
+import PRPage from "./pages/PR";
 
 const queryClient = new QueryClient();
 
 /** 这些页面自带左侧面板（如代码审查的 commit 列表），不需要全局资源管理器侧边栏。 */
-const FULL_WIDTH_ROUTES = ["/review"] as const;
+const FULL_WIDTH_ROUTES = ["/review", "/pr"] as const;
 
 function Layout({ children }: { children: React.ReactNode }) {
   const { isUnlocked, hasPassword, lock } = useAuthStore();
@@ -154,6 +155,11 @@ export default function App() {
           <Route path="/review" element={
             <Layout>
               <ProtectedRoute><ReviewPage /></ProtectedRoute>
+            </Layout>
+          } />
+          <Route path="/pr" element={
+            <Layout>
+              <ProtectedRoute><PRPage /></ProtectedRoute>
             </Layout>
           } />
           <Route path="/settings" element={

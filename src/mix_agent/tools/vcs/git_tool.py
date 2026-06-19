@@ -284,7 +284,7 @@ class GitTool:
         """
         self._ensure_repo()
 
-        args = ["log", "--format=%H%x00%h%x00%an%x00%ae%x00%aI%x00%s%x00%D",
+        args = ["log", "--format=%H|%h|%an|%ae|%aI|%D|%s",
                 f"-{max_count}", f"--skip={skip}"]
         if file_path:
             args.append("--")
@@ -363,7 +363,7 @@ class GitTool:
         """
         self._ensure_repo()
 
-        format_str = "%(refname:short)%x00%(objectname)%x00%(objectname:short)%x00%(committerdate:iso)%x00%(subject)"
+        format_str = "%(refname:short)|%(objectname)|%(objectname:short)|%(committerdate:iso)|%(subject)"
         args = ["branch", f"--format={format_str}"]
         if include_remote:
             args.append("-a")
@@ -374,7 +374,8 @@ class GitTool:
         for line in output.splitlines():
             if not line.strip():
                 continue
-            parts = line.split("\0")
+            # 用 | 分割，但 message 可能含 |，所以只取前 4 个字段，其余归入 message
+            parts = line.split("|")
             if len(parts) < 5:
                 continue
             name = parts[0].strip()
@@ -389,7 +390,6 @@ class GitTool:
                 last_commit_sha=parts[1].strip(),
                 last_commit_short=parts[2].strip(),
                 last_commit_date=parts[3].strip(),
-                # message 可能包含 \0 之后的额外字段，合并
                 last_commit_message="|".join(p.strip() for p in parts[4:]),
             ))
 
@@ -727,18 +727,20 @@ class GitTool:
         for line in output.splitlines():
             if not line.strip():
                 continue
-            parts = line.split("\0")
+            # 格式: %H|%h|%an|%ae|%aI|%D|%s — %s 在末尾避免 | 干扰
+            parts = line.split("|")
             if len(parts) < 6:
                 continue
-            refs = [r.strip() for r in parts[6].split(",") if r.strip()] if len(parts) > 6 else []
+            refs_str = parts[5].strip() if len(parts) > 5 else ""
+            refs = [r.strip() for r in refs_str.split(",") if r.strip()]
+            message = "|".join(p.strip() for p in parts[6:]) if len(parts) > 6 else ""
             commits.append(CommitInfo(
                 sha=parts[0].strip(),
                 short_sha=parts[1].strip(),
                 author=parts[2].strip(),
                 author_email=parts[3].strip(),
                 date=parts[4].strip(),
-                # message 可能包含 \0 之后的额外字段，合并
-                message="|".join(p.strip() for p in parts[5:6]),
+                message=message,
                 refs=refs,
             ))
         return commits

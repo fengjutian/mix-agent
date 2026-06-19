@@ -293,20 +293,20 @@ function MCPServersPanel() {
     refetchInterval: 30_000,
   });
 
-  if (isLoading) return <p className="sidebar-empty">Loading…</p>;
+  if (isLoading) return <p className="sidebar-empty">加载中…</p>;
   if (!data) return null;
 
   return (
     <div className="sidebar-panel">
       <div className="sidebar-panel__header">
-        <h3 className="sidebar-panel__title">MCP Servers</h3>
+        <h3 className="sidebar-panel__title">MCP 服务器</h3>
         <span style={{ fontSize: "0.65rem", color: "var(--text-muted)" }}>
-          {data.servers.filter((s) => s.enabled).length}/{data.servers.length} active
+          {data.servers.filter((s) => s.enabled).length}/{data.servers.length} 已激活
         </span>
       </div>
       <div className="sidebar-panel__body">
         {data.servers.length === 0 && (
-          <p className="sidebar-empty">No MCP servers configured.</p>
+          <p className="sidebar-empty">未配置 MCP 服务器。</p>
         )}
         {data.servers.map((s) => (
           <div key={s.name} className="sidebar-task-item" style={{ justifyContent: "space-between", cursor: "default" }}>

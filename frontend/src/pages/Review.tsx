@@ -13,7 +13,7 @@ import {
 } from "../api/client";
 import DirectoryPicker from "../components/DirectoryPicker";
 
-type RightTab = "diff" | "file" | "blame";
+type RightTab = "diff" | "file";
 
 interface Branch {
   name: string;
@@ -53,8 +53,6 @@ export default function ReviewPage() {
   const [repoPath, setRepoPath] = useState(".");
   const [branches, setBranches] = useState<Branch[]>([]);
   const [currentBranch, setCurrentBranch] = useState("");
-  const [newBranchName, setNewBranchName] = useState("");
-  const [showNewBranch, setShowNewBranch] = useState(false);
   const [commits, setCommits] = useState<Commit[]>([]);
   const [commitsLoading, setCommitsLoading] = useState(false);
   const [selectedCommit, setSelectedCommit] = useState<Commit | null>(null);
@@ -72,7 +70,6 @@ export default function ReviewPage() {
   const [fileRevision, setFileRevision] = useState("HEAD");
   const [fileLoading, setFileLoading] = useState(false);
   const [blameLines, setBlameLines] = useState<BlameLine[]>([]);
-  const [blameLoading, setBlameLoading] = useState(false);
 
   // Status
   const [statusDirty, setStatusDirty] = useState(false);
@@ -82,17 +79,26 @@ export default function ReviewPage() {
   const repoPathRef = useRef(repoPath);
   repoPathRef.current = repoPath;  // 始终保持最新值
 
-  // ── Load branches ──
-  const loadBranches = useCallback(async () => {
+  // ── Load branches ── (成功后自动触发 loadCommits)
+  const loadBranches = useCallback(async (caller = "") => {
+    const rp = repoPathRef.current;
+    console.log("[Review] loadBranches called by:", caller, "| repoPathRef:", rp);
     try {
       setBranchError("");
-      const data = await listBranches(false, repoPathRef.current);
+      const data = await listBranches(false, rp);
+      console.log("[Review] loadBranches OK | path:", rp, "| branches:", data.total, "| current:", data.current, "| list:", data.branches.map(b => b.name));
       setBranches(data.branches);
       setCurrentBranch(data.current);
+      // 分支加载成功后立即加载提交历史（即使是同一个分支名，仓库不同也需要刷新）
+      setCommits([]);
+      if (data.current) {
+        const commitData = await listCommits({ branch: data.current, max_count: 50, repo_path: rp });
+        setCommits(commitData.commits);
+      }
     } catch (e: any) {
       const msg = e?.message || String(e);
+      console.error("[Review] loadBranches FAIL | path:", rp, "| error:", msg);
       setBranchError(msg);
-      console.error("Failed to load branches", e);
     }
   }, []);
 
@@ -110,24 +116,24 @@ export default function ReviewPage() {
   }, [currentBranch]);
 
   // ── Load status ──
-  const loadStatus = useCallback(async () => {
+  const loadStatus = useCallback(async (caller = "") => {
+    const rp = repoPathRef.current;
+    console.log("[Review] loadStatus called by:", caller, "| repoPathRef:", rp);
     try {
-      const data = await getRepoStatus(repoPathRef.current);
+      const data = await getRepoStatus(rp);
+      console.log("[Review] loadStatus OK | dirty:", !data.is_clean, "| items:", data.status_items.length);
       setStatusDirty(!data.is_clean);
       setStatusItems(data.status_items);
-    } catch {
-      // best effort
+    } catch (e) {
+      console.error("[Review] loadStatus FAIL", e);
     }
   }, []);
 
   useEffect(() => {
-    loadBranches();
-    loadStatus();
+    console.log("[Review] Mount — initial load");
+    loadBranches("mount");
+    loadStatus("mount");
   }, [loadBranches, loadStatus]);
-
-  useEffect(() => {
-    if (currentBranch) loadCommits();
-  }, [loadCommits]);
 
   // 组件卸载时清理防抖定时器
   useEffect(() => {
@@ -150,18 +156,6 @@ export default function ReviewPage() {
     }
   };
 
-  const handleCreateBranch = async () => {
-    if (!newBranchName.trim()) return;
-    try {
-      await checkoutBranch(newBranchName.trim(), true, repoPath);
-      setNewBranchName("");
-      setShowNewBranch(false);
-      await loadBranches();
-    } catch (e: any) {
-      alert("创建分支失败: " + e.message);
-    }
-  };
-
   const handleSelectCommit = async (commit: Commit) => {
     setSelectedCommit(commit);
     setRightTab("diff");
@@ -178,31 +172,23 @@ export default function ReviewPage() {
     }
   };
 
+  // ── Unified: 打开文件（同时加载内容和 blame） ──
   const handleOpenFile = async (fpath: string) => {
     setFilePath(fpath);
     setRightTab("file");
     setFileLoading(true);
+    setBlameLines([]);
     try {
-      const data = await readFile(fpath, fileRevision, repoPath);
-      setFileContent(data.content);
+      const [fileData, blameData] = await Promise.all([
+        readFile(fpath, fileRevision, repoPath),
+        blameFile(fpath, fileRevision, undefined, undefined, repoPath),
+      ]);
+      setFileContent(fileData.content);
+      setBlameLines(blameData.lines);
     } catch (e: any) {
       setFileContent(`// Error: ${e.message}`);
     } finally {
       setFileLoading(false);
-    }
-  };
-
-  const handleBlame = async (fpath: string) => {
-    setFilePath(fpath);
-    setRightTab("blame");
-    setBlameLoading(true);
-    try {
-      const data = await blameFile(fpath, fileRevision, undefined, undefined, repoPath);
-      setBlameLines(data.lines);
-    } catch (e: any) {
-      setBlameLines([]);
-    } finally {
-      setBlameLoading(false);
     }
   };
 
@@ -253,13 +239,22 @@ export default function ReviewPage() {
             <DirectoryPicker
               value={repoPath}
               onChange={(newPath) => {
+                console.log("[Review] onChange (type) | newPath:", newPath);
                 setRepoPath(newPath);
-                // 防抖 500ms 自动加载
                 if (debounceRef.current) clearTimeout(debounceRef.current);
                 debounceRef.current = setTimeout(() => {
-                  loadBranches();
-                  loadStatus();
-                }, 500);
+                  console.log("[Review] debounce fired | path:", newPath);
+                  loadBranches("debounce");
+                  loadStatus("debounce");
+                }, 600);
+              }}
+              onSelectRepo={(repo) => {
+                console.log("[Review] onSelectRepo FIRED | repo:", repo);
+                if (debounceRef.current) clearTimeout(debounceRef.current);
+                setRepoPath(repo);
+                repoPathRef.current = repo;
+                loadBranches("onSelectRepo");
+                loadStatus("onSelectRepo");
               }}
             />
           </div>
@@ -283,32 +278,6 @@ export default function ReviewPage() {
               ))}
             </select>
           </div>
-
-          {/* New branch */}
-          {showNewBranch ? (
-            <div style={{ display: "flex", gap: 6, alignItems: "flex-end" }}>
-              <div className="form-group" style={{ margin: 0 }}>
-                <input
-                  className="form-input"
-                  style={{ padding: "4px 8px", fontSize: "0.82rem", width: 140 }}
-                  placeholder="新分支名"
-                  value={newBranchName}
-                  onChange={(e) => setNewBranchName(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleCreateBranch()}
-                />
-              </div>
-              <button className="btn btn--primary btn--sm" onClick={handleCreateBranch}>
-                创建
-              </button>
-              <button className="btn btn--ghost btn--sm" onClick={() => setShowNewBranch(false)}>
-                取消
-              </button>
-            </div>
-          ) : (
-            <button className="btn btn--secondary btn--sm" onClick={() => setShowNewBranch(true)}>
-              + 新分支
-            </button>
-          )}
 
           {/* Actions */}
           <div style={{ flex: 1 }} />
@@ -418,7 +387,7 @@ export default function ReviewPage() {
               padding: "0 8px",
             }}
           >
-            {(["diff", "file", "blame"] as RightTab[]).map((tab) => (
+            {(["diff", "file"] as RightTab[]).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setRightTab(tab)}
@@ -433,7 +402,7 @@ export default function ReviewPage() {
                   fontWeight: rightTab === tab ? 600 : 400,
                 }}
               >
-                {tab === "diff" ? "差异对比" : tab === "file" ? "文件查看" : "Blame 归属"}
+                {tab === "diff" ? "差异对比" : "文件查看"}
               </button>
             ))}
           </div>
@@ -510,20 +479,9 @@ export default function ReviewPage() {
                               fontSize: "0.8rem",
                             }}
                             onClick={() => handleOpenFile(cf.file_path)}
-                            title="点击查看文件内容"
+                            title="点击查看文件（含 Blame）"
                           >
                             {cf.file_path}
-                          </span>
-                          <span
-                            style={{
-                              cursor: "pointer",
-                              fontSize: "0.7rem",
-                              color: "var(--text-muted)",
-                            }}
-                            onClick={() => handleBlame(cf.file_path)}
-                            title="查看 Blame"
-                          >
-                            📍
                           </span>
                           <span style={{ fontSize: "0.75rem", whiteSpace: "nowrap" }}>
                             <span style={{ color: "var(--success)" }}>+{cf.additions}</span>/
@@ -569,9 +527,10 @@ export default function ReviewPage() {
             </div>
           )}
 
-          {/* File Tab */}
+          {/* File Tab — 统一视图：左侧 Blame + 右侧代码 */}
           {rightTab === "file" && (
             <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+              {/* Toolbar */}
               <div
                 style={{
                   padding: "8px 16px",
@@ -587,6 +546,7 @@ export default function ReviewPage() {
                   placeholder="文件路径，如 src/mix_agent/main.py"
                   value={filePath}
                   onChange={(e) => setFilePath(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleOpenFile(filePath)}
                 />
                 <input
                   className="form-input"
@@ -602,134 +562,101 @@ export default function ReviewPage() {
                 >
                   {fileLoading ? "加载中..." : "打开"}
                 </button>
-                <button
-                  className="btn btn--ghost btn--sm"
-                  disabled={!filePath}
-                  onClick={() => handleBlame(filePath)}
-                >
-                  Blame
-                </button>
               </div>
 
+              {/* Content area */}
               {fileContent ? (
-                <Editor
-                  height="calc(100vh - 340px)"
-                  language={detectLang(filePath)}
-                  value={fileContent}
-                  theme="vs-dark"
-                  options={{
-                    readOnly: true,
-                    minimap: { enabled: false },
-                    fontSize: 13,
-                    lineNumbers: "on",
-                    scrollBeyondLastLine: false,
-                    wordWrap: "off",
-                  }}
-                />
+                <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
+                  {/* Blame gutter — left */}
+                  <div
+                    id="blame-gutter"
+                    style={{
+                      width: 200,
+                      minWidth: 200,
+                      overflow: "hidden",
+                      borderRight: "1px solid var(--border)",
+                      background: "var(--bg-surface)",
+                      fontFamily: "monospace",
+                      fontSize: 11,
+                      lineHeight: "18px",
+                    }}
+                  >
+                    {blameLines.length > 0 ? (
+                      blameLines.map((line) => (
+                        <div
+                          key={line.line_number}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            padding: "0 6px",
+                            height: 18,
+                            borderBottom: "1px solid rgba(255,255,255,0.03)",
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontWeight: 600,
+                              color: "var(--accent)",
+                              marginRight: 6,
+                              minWidth: 60,
+                              fontSize: 10,
+                            }}
+                          >
+                            {line.short_sha}
+                          </span>
+                          <span
+                            style={{
+                              color: "var(--text-muted)",
+                              fontSize: 10,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                            title={`${line.author} · ${line.date}`}
+                          >
+                            {line.author?.slice(0, 14)}
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <div style={{ padding: "10px 6px", color: "var(--text-muted)", fontSize: 10 }}>
+                        加载 blame...
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Code editor — right */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <Editor
+                      height="calc(100vh - 340px)"
+                      language={detectLang(filePath)}
+                      value={fileContent}
+                      theme="vs-dark"
+                      onMount={(editor) => {
+                        // 同步滚动：编辑器滚动时更新 blame gutter
+                        editor.onDidScrollChange((e) => {
+                          const gutter = document.getElementById("blame-gutter");
+                          if (gutter) {
+                            gutter.scrollTop = e.scrollTop;
+                          }
+                        });
+                      }}
+                      options={{
+                        readOnly: true,
+                        minimap: { enabled: false },
+                        fontSize: 13,
+                        lineNumbers: "on",
+                        scrollBeyondLastLine: false,
+                        wordWrap: "off",
+                      }}
+                    />
+                  </div>
+                </div>
               ) : (
                 <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)" }}>
                   输入文件路径并点击「打开」，或从提交详情中点击文件名
                 </div>
               )}
-            </div>
-          )}
-
-          {/* Blame Tab */}
-          {rightTab === "blame" && (
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-              <div
-                style={{
-                  padding: "8px 16px",
-                  borderBottom: "1px solid var(--border)",
-                  display: "flex",
-                  gap: 10,
-                  alignItems: "center",
-                }}
-              >
-                <input
-                  className="form-input"
-                  style={{ flex: 1, padding: "4px 8px", fontSize: "0.82rem", fontFamily: "monospace" }}
-                  placeholder="文件路径"
-                  value={filePath}
-                  onChange={(e) => setFilePath(e.target.value)}
-                />
-                <input
-                  className="form-input"
-                  style={{ width: 120, padding: "4px 8px", fontSize: "0.82rem" }}
-                  placeholder="revision"
-                  value={fileRevision}
-                  onChange={(e) => setFileRevision(e.target.value)}
-                />
-                <button
-                  className="btn btn--primary btn--sm"
-                  disabled={!filePath || blameLoading}
-                  onClick={() => handleBlame(filePath)}
-                >
-                  {blameLoading ? "加载中..." : "分析"}
-                </button>
-                <button
-                  className="btn btn--ghost btn--sm"
-                  disabled={!filePath}
-                  onClick={() => handleOpenFile(filePath)}
-                >
-                  查看源码
-                </button>
-              </div>
-
-              {blameLines.length > 0 ? (
-                <div style={{ flex: 1, overflow: "auto", fontFamily: "monospace", fontSize: "0.78rem" }}>
-                  {blameLines.map((line) => (
-                    <div
-                      key={line.line_number}
-                      style={{
-                        display: "flex",
-                        borderBottom: "1px solid var(--border)",
-                        minHeight: 22,
-                      }}
-                    >
-                      {/* Blame info */}
-                      <div
-                        style={{
-                          width: 180,
-                          minWidth: 180,
-                          padding: "2px 6px",
-                          borderRight: "1px solid var(--border)",
-                          background: "var(--bg-surface)",
-                          fontSize: "0.7rem",
-                          color: "var(--text-muted)",
-                        }}
-                      >
-                        <span style={{ fontWeight: 600, color: "var(--text-heading)" }}>
-                          {line.short_sha}
-                        </span>{" "}
-                        {line.author?.slice(0, 12)}
-                      </div>
-                      {/* Line number */}
-                      <div
-                        style={{
-                          width: 48,
-                          minWidth: 48,
-                          textAlign: "right",
-                          padding: "2px 6px",
-                          borderRight: "1px solid var(--border)",
-                          color: "var(--text-muted)",
-                          fontSize: "0.7rem",
-                        }}
-                      >
-                        {line.line_number}
-                      </div>
-                      {/* Content */}
-                      <div style={{ padding: "2px 8px", whiteSpace: "pre" }}>
-                        {line.content}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : !blameLoading ? (
-                <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)" }}>
-                  输入文件路径并点击「分析」，或从提交详情中点击 📍 图标
-                </div>
-              ) : null}
             </div>
           )}
         </div>

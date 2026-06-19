@@ -9,13 +9,15 @@ interface DirectoryEntry {
 
 interface DirectoryPickerProps {
   value: string;
-  onChange: (path: string) => void;
+  onChange: (path: string) => void;        // 每次输入变化
+  onSelectRepo?: (path: string) => void;    // 选择 Git 仓库/目录时立即触发
   placeholder?: string;
 }
 
 export default function DirectoryPicker({
   value,
   onChange,
+  onSelectRepo,
   placeholder = "仓库路径",
 }: DirectoryPickerProps) {
   const [open, setOpen] = useState(false);
@@ -27,15 +29,18 @@ export default function DirectoryPicker({
   const [error, setError] = useState("");
 
   const load = useCallback(async (path: string) => {
+    console.log("[DirPicker] load | path:", path);
     setLoading(true);
     setError("");
     try {
       const data = await listDirs(path);
+      console.log("[DirPicker] load OK | entries:", data.entries.length, "| roots:", data.roots, "| parent:", data.parent);
       setEntries(data.entries);
       setParent(data.parent);
       setRoots(data.roots || []);
       setCurrentPath(data.path);
     } catch (e: any) {
+      console.error("[DirPicker] load FAIL", e);
       setError(e?.message || String(e));
       setEntries([]);
     } finally {
@@ -50,8 +55,11 @@ export default function DirectoryPicker({
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSelect = (entry: DirectoryEntry) => {
+    console.log("[DirPicker] handleSelect | name:", entry.name, "| path:", entry.path, "| isGit:", entry.is_git_repo);
     if (entry.is_git_repo) {
+      console.log("[DirPicker] → firing onChange + onSelectRepo for:", entry.path);
       onChange(entry.path);
+      onSelectRepo?.(entry.path);
       setOpen(false);
     } else {
       load(entry.path);
@@ -63,7 +71,9 @@ export default function DirectoryPicker({
   };
 
   const handleSelectCurrent = () => {
+    console.log("[DirPicker] handleSelectCurrent | path:", currentPath);
     onChange(currentPath);
+    onSelectRepo?.(currentPath);
     setOpen(false);
   };
 
@@ -98,7 +108,9 @@ export default function DirectoryPicker({
           className="btn btn--ghost btn--sm"
           style={{ padding: "4px 6px", flexShrink: 0 }}
           onClick={() => {
-            setCurrentPath(value || ".");
+            const p = value || ".";
+            console.log("[DirPicker] open button | value:", value, "| will load:", p);
+            setCurrentPath(p);
             setOpen(!open);
           }}
           title="浏览目录"

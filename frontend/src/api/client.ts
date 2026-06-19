@@ -532,6 +532,73 @@ export function listDirs(path?: string) {
   }>(`/review/dirs${qs}`);
 }
 
+// ── PR / MR ──
+
+export function listPRs(repo_url: string, state = "open") {
+  const qs = `?repo_url=${encodeURIComponent(repo_url)}&state=${state}`;
+  return request<{
+    ok: boolean;
+    platform: string;
+    repo: string;
+    prs: Array<{
+      number: number;
+      title: string;
+      description: string;
+      state: string;
+      source_branch: string;
+      target_branch: string;
+      author: string;
+      url: string;
+      created_at: string;
+      updated_at: string;
+      platform: string;
+    }>;
+    total: number;
+  }>(`/pr/list${qs}`);
+}
+
+export function getPRDetail(number: number, repo_url: string) {
+  const qs = `?repo_url=${encodeURIComponent(repo_url)}`;
+  return request<{
+    ok: boolean;
+    pr: {
+      number: number;
+      title: string;
+      description: string;
+      state: string;
+      source_branch: string;
+      target_branch: string;
+      author: string;
+      url: string;
+      created_at: string;
+      updated_at: string;
+      platform: string;
+      changed_files: Array<{
+        file_path: string;
+        change_type: string;
+        additions: number;
+        deletions: number;
+      }>;
+      raw_diff: string;
+      total_additions: number;
+      total_deletions: number;
+    };
+  }>(`/pr/${number}${qs}`);
+}
+
+export function getGitToken(platform: string) {
+  return request<{ platform: string; has_token: boolean; token_masked: string }>(
+    `/pr/token?platform=${platform}`
+  );
+}
+
+export function setGitToken(platform: string, token: string) {
+  return request<{ ok: boolean; platform: string; error?: string }>("/pr/token", {
+    method: "PUT",
+    body: JSON.stringify({ platform, token }),
+  });
+}
+
 // ── Global Settings ──
 
 export function getGlobalSettings() {

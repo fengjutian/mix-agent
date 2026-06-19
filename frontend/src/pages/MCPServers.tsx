@@ -365,7 +365,7 @@ function MCPServerForm({
       {form.transport === "stdio" && (
         <>
           <div>
-            <label className="field-label">Command</label>
+            <label className="field-label">命令</label>
             <input
               className="form-input"
               value={form.command}
@@ -374,7 +374,7 @@ function MCPServerForm({
             />
           </div>
           <div>
-            <label className="field-label">Arguments (one per line)</label>
+            <label className="field-label">参数（每行一个）</label>
             <textarea
               className="form-input"
               style={{ minHeight: 50, fontFamily: "var(--mono)", fontSize: "0.8rem" }}
@@ -384,7 +384,7 @@ function MCPServerForm({
             />
           </div>
           <div>
-            <label className="field-label">Environment (KEY=VALUE, one per line)</label>
+            <label className="field-label">环境变量（KEY=VALUE，每行一个）</label>
             <textarea
               className="form-input"
               style={{ minHeight: 50, fontFamily: "var(--mono)", fontSize: "0.8rem" }}
@@ -399,7 +399,7 @@ function MCPServerForm({
       {(form.transport === "http" || form.transport === "sse") && (
         <>
           <div>
-            <label className="field-label">URL</label>
+            <label className="field-label">网址</label>
             <input
               className="form-input"
               value={form.url}
@@ -408,7 +408,7 @@ function MCPServerForm({
             />
           </div>
           <div>
-            <label className="field-label">Headers (Key=Value, one per line)</label>
+            <label className="field-label">请求头（Key=Value，每行一个）</label>
             <textarea
               className="form-input"
               style={{ minHeight: 50, fontFamily: "var(--mono)", fontSize: "0.8rem" }}
@@ -422,7 +422,7 @@ function MCPServerForm({
 
       <div>
         <button className="btn btn--primary btn--sm" onClick={onSave} disabled={saving}>
-          {saving ? "Saving…" : saveLabel}
+          {saving ? "保存中…" : saveLabel}
         </button>
       </div>
     </div>
