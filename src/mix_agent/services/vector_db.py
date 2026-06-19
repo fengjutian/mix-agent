@@ -36,7 +36,7 @@ class VectorDBService:
         """写入/更新向量点。"""
         self._client.upsert(collection_name=self._collection, points=points)
 
-    def search(self, vector: list[float], top_k: int = 5, query_filter: Filter | None = None) -> list[Any]:
+    def search(self, vector: list[float], top_k: int = 5, query_filter: Any | None = None) -> list[Any]:
         """语义检索最相似的 top_k 条记录。"""
         hits = self._client.search(
             collection_name=self._collection,

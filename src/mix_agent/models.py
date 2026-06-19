@@ -241,7 +241,8 @@ class AgentTokenLog(Base):
 
 
 class GlobalSettings(Base):
-    """全局应用设置 — 单行配置表，使用 JSONB 存储所有设置项。"""
+    """Global application settings single-row table.
+    Uses JSONB for key-value storage of all configurable items."""
 
     __tablename__ = "global_settings"
 

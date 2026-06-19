@@ -1,4 +1,13 @@
-"""LangGraph 状态机图定义 — 完整 Agent 编排流水线（Phase 2）。"""
+"""LangGraph 状态机图定义 — 完整 Agent 编排流水线（Phase 2）。
+
+流水线: parse_requirement → orchestrator → code_review → sql_risk_explain
+        → auto_fix → summary → END
+
+orchestrator 之后的条件路由：
+  - 如果激活了 review 且未激活 code_review → 走 review 分支
+  - 否则 → 走 code_review 分支（默认，硬边完成完整流水线）
+  - 如果什么都没激活 → 直接 summary
+"""
 
 from __future__ import annotations
 
@@ -17,37 +26,38 @@ from mix_agent.agents.agent_nodes import (
 from mix_agent.schemas import AgentState
 
 
-def _route_after_orchestrator(state: AgentState) -> list[str]:
-    """编排后的条件路由：根据 activated_agents 决定执行哪些节点。"""
+def _route_after_orchestrator(state: AgentState) -> str:
+    """条件路由：根据 activated_agents 决定下一个节点。
+
+    返回单个节点名（LangGraph 条件边要求返回 str）。
+    实际执行顺序由硬边保证：
+      code_review → sql_risk_explain → auto_fix → summary → END
+      review → summary → END
+    """
     agents = state.orchestrator_result.get("activated_agents", [])
-    nodes: list[str] = []
 
-    route_map = {
-        "sql_audit": "sql_risk_explain",
-        "code_review": "code_review",
-        "review": "review",
-        "secret_scan": "summary",       # 无专用 LLM 节点，规则引擎已覆盖
-        "dependency_audit": "summary",  # 无专用节点，记录后跳过
-        "config_audit": "summary",      # 无专用节点，记录后跳过
-    }
+    has_code_review = "code_review" in agents
+    has_sql_audit = "sql_audit" in agents
+    has_review = "review" in agents
 
-    for agent in agents:
-        node_name = route_map.get(agent)
-        if node_name and node_name not in nodes:
-            nodes.append(node_name)
+    if has_review and not has_code_review and not has_sql_audit:
+        return "review"
 
-    # 至少运行一个节点后进入 summary
-    if not nodes:
-        nodes.append("summary")
+    if has_code_review or has_sql_audit:
+        return "code_review"
 
-    return nodes
+    # 无需要 LLM 分析的 agent → 直接 summary
+    return "summary"
 
 
 def build_graph() -> StateGraph:
     """构建并编译完整的 LangGraph 状态机。
 
-    流水线: parse_requirement → orchestrator → code_review → sql_risk_explain
-            → auto_fix → summary → END
+    流水线:
+      parse_requirement → orchestrator
+        ├─→ code_review → sql_risk_explain → auto_fix → summary → END
+        ├─→ review → summary → END
+        └─→ summary → END
     """
     workflow = StateGraph(AgentState)
 
@@ -64,32 +74,25 @@ def build_graph() -> StateGraph:
     workflow.set_entry_point("parse_requirement")
     workflow.add_edge("parse_requirement", "orchestrator")
 
-    # 从 orchestrator 分发到各分析节点
-    # 支持条件路由：orchestrator 决定激活哪些 agent
+    # 条件路由：orchestrator → code_review | review | summary
     workflow.add_conditional_edges(
         "orchestrator",
         _route_after_orchestrator,
         {
             "code_review": "code_review",
-            "sql_risk_explain": "sql_risk_explain",
             "review": "review",
             "summary": "summary",
         },
     )
 
-    # review 节点结束后进入 summary
-    workflow.add_edge("review", "summary")
-
-    # code_review 完成后进入 sql_risk_explain
+    # 硬边定义顺序流水线
     workflow.add_edge("code_review", "sql_risk_explain")
-
-    # SQL 审计后直接进入 auto_fix（审批流程已禁用）
     workflow.add_edge("sql_risk_explain", "auto_fix")
-
     workflow.add_edge("auto_fix", "summary")
+    workflow.add_edge("review", "summary")
     workflow.add_edge("summary", END)
 
-    # 编译（开发环境用内存 checkpointer；生产环境替换为 PostgreSQL）
+    # 编译
     checkpointer = MemorySaver()
     return workflow.compile(checkpointer=checkpointer)
 
