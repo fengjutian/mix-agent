@@ -147,7 +147,7 @@ export default function MCPServersPage() {
             setForm={setForm}
             onSave={handleAdd}
             saving={addMutation.isPending}
-            saveLabel="Add"
+            saveLabel="添加"
           />
         </div>
       )}
@@ -167,7 +167,7 @@ export default function MCPServersPage() {
         };
         return (
           <div className="card" style={{ marginBottom: 20 }}>
-            <div className="card__header"><h3 style={{ margin: 0 }}>Edit: {s.name}</h3></div>
+            <div className="card__header"><h3 style={{ margin: 0 }}>编辑：{s.name}</h3></div>
             <MCPServerForm
               form={editForm}
               setForm={(f) => {
@@ -186,10 +186,10 @@ export default function MCPServersPage() {
                   },
                 });
                 if (result.ok) setEditingName(null);
-                else alert(result.error || "Failed");
+                else alert(result.error || "失败");
               }}
               saving={updateMutation.isPending}
-              saveLabel="Save"
+              saveLabel="保存"
             />
           </div>
         );
@@ -200,9 +200,9 @@ export default function MCPServersPage() {
         <div className="card" style={{ marginBottom: 20, borderColor: testResult.ok ? "var(--success)" : "var(--danger)" }}>
           <div className="card__header">
             <h3 style={{ margin: 0, color: testResult.ok ? "var(--success)" : "var(--danger)" }}>
-              {testResult.ok ? "✓ Connection OK" : "✗ Connection Failed"}
+              {testResult.ok ? "✓ 连接成功" : "✗ 连接失败"}
             </h3>
-            <button className="btn btn--secondary btn--sm" onClick={() => setTestResult(null)}>Close</button>
+            <button className="btn btn--secondary btn--sm" onClick={() => setTestResult(null)}>关闭</button>
           </div>
           {testResult.ok ? (
             <div>
@@ -212,14 +212,14 @@ export default function MCPServersPage() {
               {testResult.tools.length > 0 && (
                 <div style={{ marginTop: 8 }}>
                   <div style={{ fontWeight: 600, marginBottom: 4, fontSize: "0.82rem" }}>
-                    Available Tools ({testResult.tools.length})
+                    可用工具 ({testResult.tools.length})
                   </div>
                   <div className="table-wrapper">
                     <table>
                       <thead>
                         <tr>
-                          <th>Tool</th>
-                          <th>Description</th>
+                          <th>工具</th>
+                          <th>描述</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -237,7 +237,7 @@ export default function MCPServersPage() {
                 </div>
               )}
               {testResult.tools.length === 0 && (
-                <p style={{ color: "var(--text-muted)" }}>No tools exposed by this server.</p>
+                <p style={{ color: "var(--text-muted)" }}>此服务器未暴露任何工具。</p>
               )}
             </div>
           ) : (
@@ -248,7 +248,7 @@ export default function MCPServersPage() {
 
       {/* Server list */}
       {data.servers.length === 0 && !showAdd && (
-        <p className="empty-state">No MCP servers configured. Click "+ Add Server" to add one.</p>
+        <p className="empty-state">未配置 MCP 服务器。点击 "+ 添加服务器" 添加一个。</p>
       )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -272,7 +272,7 @@ export default function MCPServersPage() {
                   {s.transport}
                 </span>
                 <span className={`badge ${s.enabled ? "badge--success" : "badge--warning"}`} style={{ fontSize: "0.65rem" }}>
-                  {s.enabled ? "enabled" : "disabled"}
+                  {s.enabled ? "已启用" : "已禁用"}
                 </span>
               </div>
               <div style={{ display: "flex", gap: 6 }}>
@@ -281,36 +281,36 @@ export default function MCPServersPage() {
                   onClick={() => handleToggle(s)}
                   disabled={updateMutation.isPending}
                 >
-                  {s.enabled ? "Disable" : "Enable"}
+                  {s.enabled ? "禁用" : "启用"}
                 </button>
                 <button
                   className="btn btn--secondary btn--sm"
                   onClick={() => handleTest(s.name)}
                   disabled={testing === s.name}
                 >
-                  {testing === s.name ? "Testing…" : "Test"}
+                  {testing === s.name ? "测试中…" : "测试"}
                 </button>
                 <button
                   className="btn btn--secondary btn--sm"
                   onClick={() => { setEditingName(s.name); setShowAdd(false); setTestResult(null); }}
                 >
-                  Edit
+                  编辑
                 </button>
                 <button
                   className="btn btn--danger btn--sm"
                   onClick={() => handleDelete(s.name)}
                   disabled={deleteMutation.isPending}
                 >
-                  Delete
+                  删除
                 </button>
               </div>
             </div>
             <div style={{ display: "flex", gap: 24, fontSize: "0.78rem", color: "var(--text-muted)", paddingTop: 4 }}>
               {s.transport === "stdio" && s.command && (
-                <span><strong>Command:</strong> <code>{s.command} {s.args.join(" ")}</code></span>
+                <span><strong>命令：</strong> <code>{s.command} {s.args.join(" ")}</code></span>
               )}
               {(s.transport === "http" || s.transport === "sse") && s.url && (
-                <span><strong>URL:</strong> <code>{s.url}</code></span>
+                <span><strong>网址：</strong> <code>{s.url}</code></span>
               )}
             </div>
           </div>
@@ -339,25 +339,25 @@ function MCPServerForm({
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         <div>
-          <label className="field-label">Name</label>
+          <label className="field-label">名称</label>
           <input
             className="form-input"
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
             placeholder="e.g. stripe, github"
-            disabled={saveLabel === "Save"}
+            disabled={saveLabel === "保存"}
           />
         </div>
         <div>
-          <label className="field-label">Transport</label>
+          <label className="field-label">传输方式</label>
           <select
             className="form-input"
             value={form.transport}
             onChange={(e) => setForm({ ...form, transport: e.target.value })}
           >
-            <option value="stdio">stdio (subprocess)</option>
-            <option value="http">http (Streamable HTTP)</option>
-            <option value="sse">sse (Server-Sent Events)</option>
+            <option value="stdio">stdio（子进程）</option>
+            <option value="http">http（可流式 HTTP）</option>
+            <option value="sse">sse（服务器推送事件）</option>
           </select>
         </div>
       </div>

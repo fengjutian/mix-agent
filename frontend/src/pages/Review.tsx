@@ -79,12 +79,14 @@ export default function ReviewPage() {
   const [statusItems, setStatusItems] = useState<Array<{ file_path: string; status: string; staged: boolean }>>([]);
   const [branchError, setBranchError] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const repoPathRef = useRef(repoPath);
+  repoPathRef.current = repoPath;  // 始终保持最新值
 
   // ── Load branches ──
   const loadBranches = useCallback(async () => {
     try {
       setBranchError("");
-      const data = await listBranches(false, repoPath);
+      const data = await listBranches(false, repoPathRef.current);
       setBranches(data.branches);
       setCurrentBranch(data.current);
     } catch (e: any) {
@@ -92,31 +94,31 @@ export default function ReviewPage() {
       setBranchError(msg);
       console.error("Failed to load branches", e);
     }
-  }, [repoPath]);
+  }, []);
 
   // ── Load commits ──
   const loadCommits = useCallback(async () => {
     setCommitsLoading(true);
     try {
-      const data = await listCommits({ branch: currentBranch || "HEAD", max_count: 50, repo_path: repoPath });
+      const data = await listCommits({ branch: currentBranch || "HEAD", max_count: 50, repo_path: repoPathRef.current });
       setCommits(data.commits);
     } catch (e) {
       console.error("Failed to load commits", e);
     } finally {
       setCommitsLoading(false);
     }
-  }, [repoPath, currentBranch]);
+  }, [currentBranch]);
 
   // ── Load status ──
   const loadStatus = useCallback(async () => {
     try {
-      const data = await getRepoStatus(repoPath);
+      const data = await getRepoStatus(repoPathRef.current);
       setStatusDirty(!data.is_clean);
       setStatusItems(data.status_items);
     } catch {
       // best effort
     }
-  }, [repoPath]);
+  }, []);
 
   useEffect(() => {
     loadBranches();
