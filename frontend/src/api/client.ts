@@ -515,6 +515,23 @@ export function getRepoStatus(repo_path?: string) {
   }>(`/review/status${qs}`);
 }
 
+// ── Directory Browser ──
+
+export function listDirs(path?: string) {
+  const qs = path ? `?path=${encodeURIComponent(path)}` : "";
+  return request<{
+    ok: boolean;
+    path: string;
+    parent: string | null;
+    entries: Array<{
+      name: string;
+      path: string;
+      is_git_repo: boolean;
+    }>;
+    roots: string[];
+  }>(`/review/dirs${qs}`);
+}
+
 // ── Global Settings ──
 
 export function getGlobalSettings() {

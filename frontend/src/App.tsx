@@ -6,6 +6,7 @@ import { useResizable } from "./hooks/useResizable";
 import ActivityBar from "./components/ActivityBar";
 import Sidebar from "./components/Sidebar";
 import StatusBar from "./components/StatusBar";
+import SettingsModal from "./components/SettingsModal";
 import LockScreen from "./pages/LockScreen";
 import HomePage from "./pages/Home";
 import TaskDetailPage from "./pages/TaskDetail";
@@ -26,6 +27,7 @@ const FULL_WIDTH_ROUTES = ["/review"] as const;
 function Layout({ children }: { children: React.ReactNode }) {
   const { isUnlocked, hasPassword, lock } = useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const { panelRef, onMouseDown } = useResizable({ initial: 260, min: 180, max: 420 });
   const location = useLocation();
 
@@ -53,7 +55,7 @@ function Layout({ children }: { children: React.ReactNode }) {
 
       {/* ── Body: Activity Bar | Sidebar | Content ── */}
       <div className="workspace">
-        <ActivityBar sidebarOpen={sidebarOpen} onToggleSidebar={toggleSidebar} />
+        <ActivityBar sidebarOpen={sidebarOpen} onToggleSidebar={toggleSidebar} onOpenSettings={() => setSettingsOpen(true)} />
 
         {!hideSidebar && (
           <>
@@ -91,6 +93,9 @@ function Layout({ children }: { children: React.ReactNode }) {
 
       {/* ── Status Bar ── */}
       <StatusBar />
+
+      {/* ── Settings Modal ── */}
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   );
 }

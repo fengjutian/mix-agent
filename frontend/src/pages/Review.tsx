@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Editor from "@monaco-editor/react";
 import { MIX_AGENT_DARK, registerMixAgentTheme } from "../monacoTheme";
 import {
@@ -11,6 +11,7 @@ import {
   getDiffs,
   getRepoStatus,
 } from "../api/client";
+import DirectoryPicker from "../components/DirectoryPicker";
 
 type RightTab = "diff" | "file" | "blame";
 
@@ -76,14 +77,19 @@ export default function ReviewPage() {
   // Status
   const [statusDirty, setStatusDirty] = useState(false);
   const [statusItems, setStatusItems] = useState<Array<{ file_path: string; status: string; staged: boolean }>>([]);
+  const [branchError, setBranchError] = useState("");
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Load branches ──
   const loadBranches = useCallback(async () => {
     try {
+      setBranchError("");
       const data = await listBranches(false, repoPath);
       setBranches(data.branches);
       setCurrentBranch(data.current);
-    } catch (e) {
+    } catch (e: any) {
+      const msg = e?.message || String(e);
+      setBranchError(msg);
       console.error("Failed to load branches", e);
     }
   }, [repoPath]);
@@ -121,8 +127,18 @@ export default function ReviewPage() {
     if (currentBranch) loadCommits();
   }, [loadCommits]);
 
+  // 组件卸载时清理防抖定时器
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
+
   // ── Handlers ──
   const handleCheckout = async (branch: string) => {
+    if (statusDirty && !window.confirm("工作区有未提交的变更，切换分支可能丢失进度。确定切换吗？")) {
+      return;
+    }
     try {
       await checkoutBranch(branch, false, repoPath);
       await loadBranches();
@@ -192,7 +208,7 @@ export default function ReviewPage() {
     setSelectedCommit(null);
     setRightTab("diff");
     try {
-      const data = await getDiffs("HEAD", "main", repoPath);
+      const data = await getDiffs("HEAD", currentBranch || "main", repoPath);
       setCommitDetail({
         changed_files: data.changed_files,
         total_additions: data.total_additions,
@@ -228,16 +244,21 @@ export default function ReviewPage() {
       <div className="card" style={{ marginBottom: 12, padding: "12px 16px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           {/* Repo path */}
-          <div className="form-group" style={{ margin: 0, flex: "0 0 180px" }}>
+          <div className="form-group" style={{ margin: 0, flex: "0 0 280px" }}>
             <label className="form-label" style={{ fontSize: "0.75rem", marginBottom: 2 }}>
               仓库路径
             </label>
-            <input
-              className="form-input"
-              style={{ padding: "4px 8px", fontSize: "0.82rem" }}
+            <DirectoryPicker
               value={repoPath}
-              onChange={(e) => setRepoPath(e.target.value)}
-              onBlur={() => { loadBranches(); loadStatus(); }}
+              onChange={(newPath) => {
+                setRepoPath(newPath);
+                // 防抖 500ms 自动加载
+                if (debounceRef.current) clearTimeout(debounceRef.current);
+                debounceRef.current = setTimeout(() => {
+                  loadBranches();
+                  loadStatus();
+                }, 500);
+              }}
             />
           </div>
 
@@ -245,6 +266,7 @@ export default function ReviewPage() {
           <div className="form-group" style={{ margin: 0, flex: "0 0 200px" }}>
             <label className="form-label" style={{ fontSize: "0.75rem", marginBottom: 2 }}>
               分支 {statusDirty && <span style={{ color: "var(--danger)" }}>● 有未提交变更</span>}
+              {branchError && <span style={{ color: "var(--danger)", fontSize: "0.72rem", marginLeft: 8 }}>⚠ {branchError}</span>}
             </label>
             <select
               className="form-input"

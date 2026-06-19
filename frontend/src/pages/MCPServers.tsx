@@ -28,9 +28,9 @@ interface TestResult {
 }
 
 const TRANSPORT_LABELS: Record<string, string> = {
-  stdio: "Standard I/O (subprocess)",
-  http: "HTTP (Streamable)",
-  sse: "SSE (Server-Sent Events)",
+  stdio: "标准 I/O（子进程）",
+  http: "HTTP（可流式）",
+  sse: "SSE（服务器推送事件）",
 };
 
 export default function MCPServersPage() {
@@ -76,8 +76,8 @@ export default function MCPServersPage() {
   const resetForm = () =>
     setForm({ name: "", transport: "stdio", command: "", args: "", env: "", url: "", headers: "" });
 
-  if (isLoading) return <div className="loading">Loading MCP servers…</div>;
-  if (error) return <div className="error-message">Failed to load MCP servers.</div>;
+  if (isLoading) return <div className="loading">正在加载 MCP 服务器…</div>;
+  if (error) return <div className="error-message">无法加载 MCP 服务器。</div>;
   if (!data) return null;
 
   const handleAdd = async () => {
@@ -95,7 +95,7 @@ export default function MCPServersPage() {
       resetForm();
       setShowAdd(false);
     } else {
-      alert(result.error || "Failed to add server");
+      alert(result.error || "添加服务器失败");
     }
   };
 
@@ -104,7 +104,7 @@ export default function MCPServersPage() {
   };
 
   const handleDelete = async (name: string) => {
-    if (!confirm(`Delete MCP server "${name}"?`)) return;
+    if (!confirm(`确定要删除 MCP 服务器 "${name}" 吗？`)) return;
     await deleteMutation.mutateAsync(name);
   };
 
@@ -123,10 +123,10 @@ export default function MCPServersPage() {
 
   return (
     <div>
-      <h1>MCP Servers</h1>
+      <h1>MCP 服务器</h1>
       <p style={{ color: "var(--text-muted)", marginBottom: 24 }}>
-        Configure external MCP (Model Context Protocol) servers that agents can connect to for tool access.
-        Supports stdio (subprocess), HTTP, and SSE transports.
+        配置外部 MCP（模型上下文协议）服务器，代理可连接这些服务器以获取工具访问权限。
+        支持 stdio（子进程）、HTTP 和 SSE 传输方式。
       </p>
 
       <div style={{ marginBottom: 16 }}>
@@ -134,14 +134,14 @@ export default function MCPServersPage() {
           className="btn btn--primary btn--sm"
           onClick={() => { resetForm(); setShowAdd(!showAdd); setEditingName(null); setTestResult(null); }}
         >
-          {showAdd ? "Cancel" : "+ Add Server"}
+          {showAdd ? "取消" : "+ 添加服务器"}
         </button>
       </div>
 
       {/* Add form */}
       {showAdd && (
         <div className="card" style={{ marginBottom: 20 }}>
-          <div className="card__header"><h3 style={{ margin: 0 }}>Add MCP Server</h3></div>
+          <div className="card__header"><h3 style={{ margin: 0 }}>添加 MCP 服务器</h3></div>
           <MCPServerForm
             form={form}
             setForm={setForm}

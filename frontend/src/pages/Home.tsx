@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createTask, runAgent, getAgentResult } from "../api/client";
+import DirectoryPicker from "../components/DirectoryPicker";
 
 type Mode = "scan" | "agent";
 
@@ -94,11 +95,7 @@ export default function HomePage() {
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label className="form-label">仓库路径</label>
-            <input
-              className="form-input"
-              value={repo}
-              onChange={(e) => setRepo(e.target.value)}
-            />
+            <DirectoryPicker value={repo} onChange={setRepo} />
           </div>
 
           <div className="form-row">

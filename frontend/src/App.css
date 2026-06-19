@@ -201,10 +201,9 @@
 /* Sidebar itself — scrollable panel area */
 
 .sidebar {
-  display: flex;
-  flex-direction: column;
   flex: 1;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   min-height: 0;
 }
 
@@ -213,22 +212,7 @@
 .sidebar-panel {
   display: flex;
   flex-direction: column;
-  flex: 1;
-  min-height: 0;
-}
-
-/* Route-dependent top panel — fills available space, scrolls if needed */
-.sidebar-panel--main {
-  flex: 1;
-  overflow-y: auto;
-  min-height: 0;
-}
-
-/* Settings summary — pinned to sidebar bottom */
-.sidebar-panel--settings {
-  flex: 0 0 auto;
-  border-top: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.015);
+  height: 100%;
 }
 
 .sidebar-panel__header {
@@ -253,8 +237,6 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  overflow-y: auto;
-  min-height: 0;
 }
 
 .sidebar-section-label {
@@ -820,6 +802,181 @@ tbody tr:hover {
 
 .modal__footer {
   border-top: 1px solid var(--border);
+}
+
+/* ── Settings Modal ── */
+
+.settings-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(2px);
+  animation: settingsFadeIn 140ms var(--ease-out);
+}
+
+@keyframes settingsFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.settings-modal {
+  width: min(620px, 94vw);
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+  animation: settingsSlideUp 180ms var(--ease-out);
+}
+
+@keyframes settingsSlideUp {
+  from { transform: translateY(16px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.settings-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 8px;
+  flex-shrink: 0;
+}
+
+.settings-modal__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 650;
+  color: var(--text-heading);
+}
+
+.settings-modal__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 120ms var(--ease-out), color 120ms var(--ease-out);
+}
+
+.settings-modal__close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-heading);
+}
+
+.settings-modal__error {
+  margin: 8px 20px 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--danger);
+  font-size: 0.82rem;
+}
+
+.settings-modal__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 16px 16px;
+}
+
+.settings-modal__footer {
+  flex-shrink: 0;
+  padding: 10px 20px;
+  border-top: 1px solid var(--border);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+/* ── Settings Row ── */
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.settings-row:last-child {
+  border-bottom: none;
+}
+
+.settings-row__info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.settings-row__label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-heading);
+}
+
+.settings-row__hint {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.settings-row__control {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.settings-row__display {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.settings-row__display code {
+  font-size: 0.85rem;
+  font-family: var(--mono);
+  color: var(--text-heading);
+  background: rgba(255, 255, 255, 0.04);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.settings-row__edit-btn {
+  opacity: 0;
+  transition: opacity 120ms var(--ease-out);
+  padding: 2px 6px !important;
+}
+
+.settings-row:hover .settings-row__edit-btn {
+  opacity: 0.7;
+}
+
+.settings-row:hover .settings-row__edit-btn:hover {
+  opacity: 1;
+}
+
+.settings-row__edit {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.settings-row__edit .form-input {
+  width: 120px;
+  padding: 4px 8px;
+  font-size: 0.85rem;
 }
 
 /* ── Responsive ── */

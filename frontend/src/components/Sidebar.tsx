@@ -1,6 +1,6 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { getPendingApprovals, getCostOverview, getModels, getKeys, getPrompts, getMCPServers, getGlobalSettings } from "../api/client";
+import { getPendingApprovals, getCostOverview, getModels, getKeys, getPrompts, getMCPServers } from "../api/client";
 
 /* ── Tasks Panel ── */
 
@@ -326,70 +326,6 @@ function MCPServersPanel() {
   );
 }
 
-/* ── Settings Summary Panel (always visible at sidebar bottom) ── */
-
-function SettingsSummaryPanel() {
-  const navigate = useNavigate();
-  const { data, isLoading } = useQuery({
-    queryKey: ["global-settings"],
-    queryFn: getGlobalSettings,
-    refetchInterval: 120_000,
-  });
-
-  if (isLoading) return null;
-  const settings = data?.data;
-  if (!settings) return null;
-
-  return (
-    <div className="sidebar-panel sidebar-panel--settings">
-      <div className="sidebar-panel__header">
-        <h3 className="sidebar-panel__title">配置</h3>
-        <button
-          className="btn btn--ghost btn--sm"
-          onClick={() => navigate("/settings")}
-          style={{ fontSize: "0.65rem", padding: "2px 6px" }}
-          title="打开设置页面"
-        >
-          全部
-        </button>
-      </div>
-      <div className="sidebar-panel__body">
-        {/* Sandbox */}
-        <div className="sidebar-stat">
-          <span className="sidebar-stat__label">沙箱超时</span>
-          <span className="sidebar-stat__value">{settings.sandbox_timeout}s</span>
-        </div>
-        <div className="sidebar-stat">
-          <span className="sidebar-stat__label">沙箱 CPU/内存</span>
-          <span className="sidebar-stat__value">{settings.sandbox_cpu_limit}c / {settings.sandbox_memory_limit}</span>
-        </div>
-
-        {/* Token throttle */}
-        <div className="sidebar-stat">
-          <span className="sidebar-stat__label">Token 突发限制</span>
-          <span className="sidebar-stat__value">{Number(settings.token_burst_limit).toLocaleString()}</span>
-        </div>
-
-        {/* SQL Guard */}
-        <div className="sidebar-stat">
-          <span className="sidebar-stat__label">SQL 安全</span>
-          <span className="sidebar-stat__value">
-            <span className={`badge ${settings.sqlguard_enabled ? "badge--success" : "badge--warning"}`} style={{ fontSize: "0.6rem" }}>
-              {settings.sqlguard_enabled ? "ON" : "OFF"}
-            </span>
-          </span>
-        </div>
-
-        {/* Concurrency */}
-        <div className="sidebar-stat">
-          <span className="sidebar-stat__label">Agent 最大并发</span>
-          <span className="sidebar-stat__value">{settings.agent_max_concurrency}</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /* ── Sidebar Root ── */
 
 export default function Sidebar() {
@@ -410,10 +346,7 @@ export default function Sidebar() {
 
   return (
     <aside className="sidebar">
-      <div className="sidebar-panel--main">
-        {panel()}
-      </div>
-      <SettingsSummaryPanel />
+      {panel()}
     </aside>
   );
 }

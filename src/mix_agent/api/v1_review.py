@@ -345,3 +345,66 @@ def list_remotes(
         raise HTTPException(status_code=400, detail=str(e))
     except RuntimeError as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ═══════════════════════════════════════════════════════════
+# Directory Browser
+# ═══════════════════════════════════════════════════════════
+
+
+@router.get("/dirs")
+def list_dirs(
+    path: str = Query(".", description="父目录路径"),
+) -> dict:
+    """列出指定路径下的子目录（含 .git 标记），用于目录选择器。"""
+    from pathlib import Path
+    import sys
+
+    try:
+        root = Path(path).resolve()
+        if not root.exists():
+            raise ValueError(f"Path does not exist: {root}")
+        if not root.is_dir():
+            raise ValueError(f"Not a directory: {root}")
+
+        entries: list[dict] = []
+        try:
+            for child in sorted(root.iterdir()):
+                if not child.is_dir() or child.name.startswith("."):
+                    continue
+                is_git = (child / ".git").exists()
+                entries.append({
+                    "name": child.name,
+                    "path": str(child),
+                    "is_git_repo": is_git,
+                })
+        except PermissionError:
+            pass  # 跳过无权限目录
+
+        parent = str(root.parent) if str(root) != str(root.parent) else None
+
+        # 系统根路径列表（切换盘符/根目录）
+        roots: list[str] = []
+        if sys.platform == "win32":
+            import string
+            from ctypes import windll
+            drives = []
+            bitmask = windll.kernel32.GetLogicalDrives()
+            for letter in string.ascii_uppercase:
+                if bitmask & (1 << (ord(letter) - ord("A"))):
+                    drives.append(f"{letter}:\\")
+            roots = drives
+        else:
+            roots = ["/"]
+
+        return {
+            "ok": True,
+            "path": str(root),
+            "parent": parent,
+            "entries": entries,
+            "roots": roots,
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))

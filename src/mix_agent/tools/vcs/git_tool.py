@@ -220,8 +220,9 @@ class GitTool:
     前提：用户本地已安装 Git。
     """
 
-    def __init__(self, repo_path: str | Path = "."):
+    def __init__(self, repo_path: str | Path = ".", timeout: int = 30):
         self.repo_path = Path(repo_path).resolve()
+        self.timeout = timeout
 
     # ═══════════════════════════════════════════════════════════
     # Diff
@@ -283,7 +284,7 @@ class GitTool:
         """
         self._ensure_repo()
 
-        args = ["log", "--format=%H|%h|%an|%ae|%aI|%s|%D",
+        args = ["log", "--format=%H%x00%h%x00%an%x00%ae%x00%aI%x00%s%x00%D",
                 f"-{max_count}", f"--skip={skip}"]
         if file_path:
             args.append("--")
@@ -362,7 +363,7 @@ class GitTool:
         """
         self._ensure_repo()
 
-        format_str = "%(refname:short)|%(objectname)|%(objectname:short)|%(committerdate:iso)|%(subject)"
+        format_str = "%(refname:short)%x00%(objectname)%x00%(objectname:short)%x00%(committerdate:iso)%x00%(subject)"
         args = ["branch", f"--format={format_str}"]
         if include_remote:
             args.append("-a")
@@ -373,13 +374,14 @@ class GitTool:
         for line in output.splitlines():
             if not line.strip():
                 continue
-            parts = line.split("|")
+            parts = line.split("\0")
             if len(parts) < 5:
                 continue
             name = parts[0].strip()
             is_remote = name.startswith("remotes/")
             if is_remote:
-                name = name.replace("remotes/origin/", "")
+                # 保留 origin/ 前缀以避免与本地分支重名
+                name = name.replace("remotes/", "")
             branches.append(BranchInfo(
                 name=name,
                 is_current=(name == current),
@@ -387,7 +389,8 @@ class GitTool:
                 last_commit_sha=parts[1].strip(),
                 last_commit_short=parts[2].strip(),
                 last_commit_date=parts[3].strip(),
-                last_commit_message=parts[4].strip(),
+                # message 可能包含 \0 之后的额外字段，合并
+                last_commit_message="|".join(p.strip() for p in parts[4:]),
             ))
 
         return branches
@@ -645,7 +648,7 @@ class GitTool:
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
-                timeout=30,
+                timeout=self.timeout,
             )
             if result.returncode != 0:
                 stderr = result.stderr.strip()
@@ -724,7 +727,7 @@ class GitTool:
         for line in output.splitlines():
             if not line.strip():
                 continue
-            parts = line.split("|")
+            parts = line.split("\0")
             if len(parts) < 6:
                 continue
             refs = [r.strip() for r in parts[6].split(",") if r.strip()] if len(parts) > 6 else []
@@ -734,7 +737,8 @@ class GitTool:
                 author=parts[2].strip(),
                 author_email=parts[3].strip(),
                 date=parts[4].strip(),
-                message=parts[5].strip(),
+                # message 可能包含 \0 之后的额外字段，合并
+                message="|".join(p.strip() for p in parts[5:6]),
                 refs=refs,
             ))
         return commits
