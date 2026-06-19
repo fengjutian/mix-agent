@@ -1,161 +1,270 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { sendProxyRequest, type ProxyResponseBody } from "../api/client";
+import { Tabs, TabsList, TabsTab, TabsPanel } from "../components/ui/tabs";
+import { Select, SelectTrigger, SelectValue, SelectPopup, SelectItem, SelectItemIndicator } from "../components/ui/select";
+import { Collapsible, CollapsibleTrigger, CollapsiblePanel } from "../components/ui/collapsible";
+import { Checkbox, CheckboxIndicator } from "../components/ui/checkbox";
+import { Tooltip, TooltipTrigger, TooltipPopup, TooltipProvider } from "../components/ui/tooltip";
+import {
+  Dialog, DialogTrigger, DialogContent, DialogHeader,
+  DialogTitle, DialogFooter, DialogClose,
+} from "../components/ui/dialog";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { cn } from "../lib/utils";
+
+/* ═══════════════════════════════════════════════════════════════════════
+   API Client — Postman-like HTTP request tool
+   Built with @base-ui/react primitives + Tailwind CSS v4
+   ═══════════════════════════════════════════════════════════════════════ */
+
+// ── Constants ──
+
+const HTTP_METHODS = ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"] as const;
+type HttpMethod = (typeof HTTP_METHODS)[number];
+const METHODS_WITH_BODY: HttpMethod[] = ["POST", "PUT", "PATCH", "DELETE"];
+
+const METHOD_COLORS: Record<string, string> = {
+  GET: "text-green-400", POST: "text-orange-400", PUT: "text-blue-400",
+  DELETE: "text-red-400", PATCH: "text-orange-400",
+  HEAD: "text-muted-foreground", OPTIONS: "text-muted-foreground",
+};
 
 // ── Helpers ──
 
-const HTTP_METHODS = ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"];
-const METHODS_WITH_BODY = ["POST", "PUT", "PATCH", "DELETE"];
-const CONTENT_TYPES = [
-  "application/json",
-  "application/x-www-form-urlencoded",
-  "text/plain",
-  "text/html",
-  "application/xml",
-];
-
-const METHOD_COLORS: Record<string, string> = {
-  GET: "var(--success)",
-  POST: "var(--warning)",
-  PUT: "var(--info)",
-  DELETE: "var(--danger)",
-  PATCH: "var(--warning)",
-  HEAD: "var(--text-muted)",
-  OPTIONS: "var(--text-muted)",
-};
-
+function uid(): string {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
 function formatTiming(ms: number): string {
   if (ms < 1000) return `${ms.toFixed(0)} ms`;
   return `${(ms / 1000).toFixed(2)} s`;
 }
-
 function formatBytes(text: string): string {
   const bytes = new Blob([text]).size;
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
-
 function tryPrettifyJSON(raw: string): string {
+  try { return JSON.stringify(JSON.parse(raw), null, 2); } catch { return raw; }
+}
+function tryPrettifyXML(raw: string): string {
   try {
-    const parsed = JSON.parse(raw);
-    return JSON.stringify(parsed, null, 2);
-  } catch {
-    return raw;
-  }
+    let indent = 0;
+    return raw
+      .replace(/(<[^/!][^>]*>)([^<]*)(<\/[^>]*>)/g, (_, open, text, close) =>
+        "  ".repeat(indent) + open + text + close)
+      .replace(/(<[^/!][^>]*>)/g, (m: string) => { const s = "  ".repeat(indent) + m; indent++; return s; })
+      .replace(/(<\/[^>]*>)/g, (m: string) => { indent = Math.max(0, indent - 1); return "  ".repeat(indent) + m; });
+  } catch { return raw; }
+}
+function inferContentType(headers: Record<string, string>): string | null {
+  const ct = Object.entries(headers).find(([k]) => k.toLowerCase() === "content-type");
+  return ct ? ct[1] : null;
 }
 
-// ── Persisted History ──
+// ── Environment variable substitution ──
 
-interface HistoryEntry {
-  id: string;
-  method: string;
+function substituteEnvVars(text: string, env: Record<string, string>): string {
+  return text.replace(/\{\{(\w+)\}\}/g, (_, name) => env[name] ?? `{{${name}}}`);
+}
+
+// ── Persisted types ──
+
+interface KVPair { key: string; value: string; enabled: boolean; }
+type BodyMode = "raw" | "form-data" | "x-www-form-urlencoded";
+type AuthType = "none" | "bearer" | "basic";
+
+interface RequestState {
+  method: HttpMethod;
   url: string;
-  headers: Record<string, string>;
-  query_params: Record<string, string>;
-  body: string | null;
-  content_type: string | null;
-  timestamp: number;
+  headers: KVPair[];
+  queryParams: KVPair[];
+  body: string;
+  bodyMode: BodyMode;
+  contentType: string;
+  formData: KVPair[];
+  authType: AuthType;
+  authBearerToken: string;
+  authBasicUser: string;
+  authBasicPass: string;
 }
 
-function loadHistory(): HistoryEntry[] {
-  try {
-    const raw = localStorage.getItem("api-client-history");
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
+interface RequestTab {
+  id: string;
+  name: string;
+  request: RequestState;
+  response: ProxyResponseBody | null;
+  error: string;
+  loading: boolean;
 }
 
-function saveHistory(entries: HistoryEntry[]) {
+interface Collection {
+  id: string;
+  name: string;
+  requests: { name: string; request: RequestState }[];
+}
+
+interface Environment {
+  id: string;
+  name: string;
+  variables: Record<string, string>;
+}
+
+function defaultRequest(): RequestState {
+  return {
+    method: "GET", url: "", headers: [], queryParams: [],
+    body: "", bodyMode: "raw", contentType: "application/json",
+    formData: [], authType: "none", authBearerToken: "",
+    authBasicUser: "", authBasicPass: "",
+  };
+}
+
+function newTab(name?: string): RequestTab {
+  return { id: uid(), name: name || "新请求", request: defaultRequest(), response: null, error: "", loading: false };
+}
+
+// ── localStorage helpers ──
+
+function lsGet<T>(key: string, fallback: T): T {
+  try { const r = localStorage.getItem(key); return r ? JSON.parse(r) : fallback; } catch { return fallback; }
+}
+function lsSet(key: string, val: unknown) {
+  try { localStorage.setItem(key, JSON.stringify(val)); } catch { /* ignore */ }
+}
+
+// ── cURL parser ──
+
+function parseCurl(curl: string): Partial<RequestState> | null {
   try {
-    localStorage.setItem("api-client-history", JSON.stringify(entries.slice(0, 50)));
-  } catch {
-    // storage full — ignore
+    const s = curl.trim();
+    if (!s.startsWith("curl ")) return null;
+    const urlMatch = s.match(/(?:--url\s+)?['"]?(https?:\/\/[^\s'"]+)['"]?/);
+    const url = urlMatch ? urlMatch[1] : "";
+    const methodMatch = s.match(/(?:-X|--request)\s+['"]?(\w+)['"]?/);
+    const method = (methodMatch ? methodMatch[1].toUpperCase() : "GET") as HttpMethod;
+    const headers: KVPair[] = [];
+    const headerRe = /(?:-H|--header)\s+['"]([^'"]+)['"]/g;
+    let hm;
+    while ((hm = headerRe.exec(s)) !== null) {
+      const colon = hm[1].indexOf(":");
+      if (colon > 0) headers.push({ key: hm[1].slice(0, colon).trim(), value: hm[1].slice(colon + 1).trim(), enabled: true });
+    }
+    const dataMatch = s.match(/(?:-d|--data|--data-raw|--data-binary)\s+['"]([^'"]*)['"]/s);
+    const body = dataMatch ? dataMatch[1] : "";
+    return { method, url, headers, body, authType: "none" };
+  } catch { return null; }
+}
+
+function toCurl(req: RequestState, env?: Record<string, string>): string {
+  const url = env ? substituteEnvVars(req.url, env) : req.url;
+  let c = `curl`;
+  if (req.method !== "GET") c += ` -X ${req.method}`;
+  for (const h of req.headers) {
+    if (h.enabled && h.key.trim()) {
+      const v = env ? substituteEnvVars(h.value, env) : h.value;
+      c += ` -H '${h.key.trim()}: ${v}'`;
+    }
   }
+  if (req.authType === "bearer" && req.authBearerToken) c += ` -H 'Authorization: Bearer ${req.authBearerToken}'`;
+  else if (req.authType === "basic" && req.authBasicUser) c += ` -u '${req.authBasicUser}:${req.authBasicPass}'`;
+  if (req.body && METHODS_WITH_BODY.includes(req.method)) c += ` -d '${req.body.replace(/'/g, "'\\''")}'`;
+  c += ` '${url}'`;
+  return c;
 }
 
 // ── Key-Value Editor ──
 
-interface KVPair {
-  key: string;
-  value: string;
-  enabled: boolean;
-}
-
-function KeyValueEditor({
-  pairs,
-  onChange,
-  showEnableToggle,
-}: {
-  pairs: KVPair[];
-  onChange: (pairs: KVPair[]) => void;
-  showEnableToggle: boolean;
+function KeyValueEditor({ pairs, onChange, showEnableToggle }: {
+  pairs: KVPair[]; onChange: (pairs: KVPair[]) => void; showEnableToggle: boolean;
 }) {
   const update = (i: number, p: Partial<KVPair>) => {
-    const next = [...pairs];
-    next[i] = { ...next[i], ...p };
-    onChange(next);
+    const next = [...pairs]; next[i] = { ...next[i], ...p }; onChange(next);
   };
-
-  const remove = (i: number) => {
-    onChange(pairs.filter((_, idx) => idx !== i));
-  };
-
-  const add = () => {
-    onChange([...pairs, { key: "", value: "", enabled: true }]);
-  };
-
   return (
-    <div>
+    <div className="flex flex-col gap-1.5">
       {pairs.map((p, i) => (
-        <div
-          key={i}
-          style={{
-            display: "flex",
-            gap: 6,
-            marginBottom: 4,
-            alignItems: "center",
-          }}
-        >
+        <div key={i} className="flex items-center gap-1.5">
           {showEnableToggle && (
-            <input
-              type="checkbox"
-              checked={p.enabled}
-              onChange={(e) => update(i, { enabled: e.target.checked })}
-              style={{ flexShrink: 0, accentColor: "var(--accent)" }}
-            />
+            <Checkbox checked={p.enabled}
+              onCheckedChange={(checked) => update(i, { enabled: !!checked })}
+            >
+              <CheckboxIndicator />
+            </Checkbox>
           )}
-          <input
-            className="form-input"
-            value={p.key}
+          <Input value={p.key}
             onChange={(e) => update(i, { key: e.target.value })}
             placeholder="Key"
-            style={{ flex: "1 1 35%", padding: "4px 8px", fontSize: "0.78rem", fontFamily: "var(--mono)" }}
-          />
-          <input
-            className="form-input"
-            value={p.value}
+            className="flex-[1_1_35%] h-7 text-xs font-mono px-2" />
+          <Input value={p.value}
             onChange={(e) => update(i, { value: e.target.value })}
             placeholder="Value"
-            style={{ flex: "1 1 65%", padding: "4px 8px", fontSize: "0.78rem", fontFamily: "var(--mono)" }}
-          />
-          <button
-            className="btn btn--ghost btn--sm"
-            onClick={() => remove(i)}
-            style={{ padding: "2px 6px", fontSize: "0.7rem", flexShrink: 0 }}
+            className="flex-[1_1_65%] h-7 text-xs font-mono px-2" />
+          <Button variant="ghost" size="icon-xs"
+            onClick={() => onChange(pairs.filter((_, idx) => idx !== i))}
             title="移除"
-          >
-            ✕
-          </button>
+            className="shrink-0 text-muted-foreground hover:text-destructive"
+          >✕</Button>
         </div>
       ))}
-      <button
-        className="btn btn--ghost btn--sm"
-        onClick={add}
-        style={{ marginTop: 4, fontSize: "0.75rem" }}
-      >
+      <Button variant="ghost" size="xs" onClick={() => onChange([...pairs, { key: "", value: "", enabled: true }])}
+        className="self-start text-xs">
         + 添加
-      </button>
+      </Button>
+    </div>
+  );
+}
+
+// ── Request Tab bar ──
+
+function TabBar({ tabs, activeId, onSelect, onClose, onAdd }: {
+  tabs: RequestTab[]; activeId: string;
+  onSelect: (id: string) => void; onClose: (id: string) => void; onAdd: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-0.5 border-b border-border overflow-x-auto min-h-9 mb-4">
+      {tabs.map((tab) => (
+        <div key={tab.id} className={cn(
+          "group/tab flex items-center gap-1.5 px-2.5 py-1.5 cursor-pointer rounded-t-md border border-transparent text-sm whitespace-nowrap transition-colors",
+          activeId === tab.id
+            ? "bg-card border-border border-b-card text-foreground font-medium -mb-px"
+            : "text-muted-foreground hover:text-foreground"
+        )}>
+          <span onClick={() => onSelect(tab.id)}
+            className="max-w-[140px] overflow-hidden text-ellipsis"
+            onDoubleClick={() => {
+              // eslint-disable-next-line no-alert
+              const name = prompt("重命名请求标签", tab.name);
+              if (name) tab.name = name;
+            }}
+          >
+            {tab.request.method !== "GET" && (
+              <span className={cn("text-[0.7rem] font-bold mr-1", METHOD_COLORS[tab.request.method])}>
+                {tab.request.method}
+              </span>
+            )}
+            {tab.name}
+          </span>
+          {tab.loading && <span className="text-[0.65rem] animate-pulse">⏳</span>}
+          {tabs.length > 1 && (
+            <button onClick={(e) => { e.stopPropagation(); onClose(tab.id); }}
+              className="text-muted-foreground hover:text-foreground text-[0.65rem] leading-none p-0.5 rounded-sm opacity-0 group-hover/tab:opacity-100 transition-opacity"
+              title="关闭"
+            >✕</button>
+          )}
+        </div>
+      ))}
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger>
+            <Button variant="ghost" size="icon-xs" onClick={onAdd}
+              className="shrink-0 ml-1 rounded-md text-muted-foreground" title="新建请求标签">
+              +
+            </Button>
+          </TooltipTrigger>
+          <TooltipPopup>新建请求标签</TooltipPopup>
+        </Tooltip>
+      </TooltipProvider>
     </div>
   );
 }
@@ -165,525 +274,677 @@ function KeyValueEditor({
 // ═══════════════════════════════════════════
 
 export default function ApiClientPage() {
-  // ── Request state ──
-  const [method, setMethod] = useState("GET");
-  const [url, setUrl] = useState("");
-  const [headers, setHeaders] = useState<KVPair[]>([]);
-  const [queryParams, setQueryParams] = useState<KVPair[]>([]);
-  const [body, setBody] = useState("");
-  const [contentType, setContentType] = useState("application/json");
-  const [loading, setLoading] = useState(false);
+  // ── Tabs ──
+  const [tabs, setTabs] = useState<RequestTab[]>(() => {
+    const saved = lsGet<RequestTab[]>("api-tabs", []);
+    return saved.length > 0 ? saved : [newTab()];
+  });
+  const [activeTabId, setActiveTabId] = useState(() => tabs[0]?.id ?? "");
 
-  // ── Response state ──
-  const [response, setResponse] = useState<ProxyResponseBody | null>(null);
-  const [error, setError] = useState("");
-  const [activeTab, setActiveTab] = useState<"headers" | "query" | "body">("headers");
-  const [responseTab, setResponseTab] = useState<"body" | "headers">("body");
+  useEffect(() => {
+    lsSet("api-tabs", tabs.map(t => ({
+      id: t.id, name: t.name, request: t.request, response: null, error: "", loading: false,
+    })));
+  }, [tabs.map(t => `${t.id}:${t.name}:${JSON.stringify(t.request)}`).join("|")]);
 
-  // ── History ──
-  const [history, setHistory] = useState<HistoryEntry[]>(loadHistory);
-  const [showHistory, setShowHistory] = useState(false);
+  const activeTab = useMemo(() => tabs.find(t => t.id === activeTabId) ?? tabs[0], [tabs, activeTabId]);
+  const req = activeTab?.request ?? defaultRequest();
+  const response = activeTab?.response ?? null;
+  const thisError = activeTab?.error ?? "";
+  const loading = activeTab?.loading ?? false;
+
+  const updateReq = useCallback((patch: Partial<RequestState>) => {
+    setTabs(prev => prev.map(t =>
+      t.id === activeTabId ? { ...t, request: { ...t.request, ...patch }, error: "", response: null } : t
+    ));
+  }, [activeTabId]);
+
+  // ── Collections ──
+  const [collections, setCollections] = useState<Collection[]>(() => lsGet<Collection[]>("api-collections", []));
+  useEffect(() => { lsSet("api-collections", collections); }, [collections]);
+
+  // ── Environments ──
+  const [environments, setEnvironments] = useState<Environment[]>(() => lsGet<Environment[]>("api-envs", []));
+  const [activeEnvId, setActiveEnvId] = useState<string>(() => lsGet<string>("api-active-env", ""));
+  useEffect(() => { lsSet("api-envs", environments); }, [environments]);
+  const activeEnv = useMemo(() => environments.find(e => e.id === activeEnvId), [environments, activeEnvId]);
+  const envVars = activeEnv?.variables ?? {};
+
+  // ── cURL import state ──
+  const [curlModalOpen, setCurlModalOpen] = useState(false);
+  const [curlText, setCurlText] = useState("");
+  const [curlError, setCurlError] = useState("");
+
+  // ── UI state ──
+  const [sidebarTab, setSidebarTab] = useState<"collections" | "envs">("collections");
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [reqConfigTab, setReqConfigTab] = useState("headers");
+  const [respTab, setRespTab] = useState("body");
+  const [bodyViewMode, setBodyViewMode] = useState<"pretty" | "raw" | "preview">("pretty");
+
+  // ── Tab operations ──
+  const addTab = useCallback(() => {
+    const tab = newTab(); setTabs(prev => [...prev, tab]); setActiveTabId(tab.id);
+  }, []);
+  const closeTab = useCallback((id: string) => {
+    setTabs(prev => {
+      if (prev.length <= 1) return prev;
+      const next = prev.filter(t => t.id !== id);
+      if (id === activeTabId) {
+        const idx = prev.findIndex(t => t.id === id);
+        const newActive = next[Math.min(idx, next.length - 1)];
+        if (newActive) setActiveTabId(newActive.id);
+      }
+      return next;
+    });
+  }, [activeTabId]);
 
   // ── Send request ──
-  const handleSend = useCallback(async () => {
-    if (!url.trim()) {
-      setError("请输入 URL");
+  const handleSend = useCallback(async (tab: RequestTab) => {
+    const r = tab.request;
+    const substitutedUrl = substituteEnvVars(r.url, envVars);
+    if (!substitutedUrl.trim()) {
+      setTabs(prev => prev.map(t => t.id === tab.id ? { ...t, error: "请输入 URL" } : t));
       return;
     }
-
-    setError("");
-    setResponse(null);
-    setLoading(true);
-
+    setTabs(prev => prev.map(t => t.id === tab.id ? { ...t, loading: true, error: "", response: null } : t));
     try {
-      // Build headers map from enabled pairs
       const headersMap: Record<string, string> = {};
-      for (const h of headers) {
-        if (h.enabled && h.key.trim()) {
-          headersMap[h.key.trim()] = h.value;
-        }
+      for (const h of r.headers) {
+        if (h.enabled && h.key.trim()) headersMap[h.key.trim()] = substituteEnvVars(h.value, envVars);
       }
-
-      // Build query params map from enabled pairs
+      if (r.authType === "bearer" && r.authBearerToken) {
+        headersMap["Authorization"] = `Bearer ${substituteEnvVars(r.authBearerToken, envVars)}`;
+      } else if (r.authType === "basic" && r.authBasicUser) {
+        const u = substituteEnvVars(r.authBasicUser, envVars);
+        const p = substituteEnvVars(r.authBasicPass, envVars);
+        headersMap["Authorization"] = `Basic ${btoa(`${u}:${p}`)}`;
+      }
       const queryMap: Record<string, string> = {};
-      for (const q of queryParams) {
-        if (q.enabled && q.key.trim()) {
-          queryMap[q.key.trim()] = q.value;
+      for (const q of r.queryParams) {
+        if (q.enabled && q.key.trim()) queryMap[q.key.trim()] = substituteEnvVars(q.value, envVars);
+      }
+      let bodyStr: string | null = null;
+      let ct = r.contentType;
+      if (METHODS_WITH_BODY.includes(r.method)) {
+        if (r.bodyMode === "raw") {
+          bodyStr = substituteEnvVars(r.body, envVars);
+        } else {
+          const fd = new URLSearchParams();
+          for (const f of r.formData) {
+            if (f.enabled && f.key.trim()) fd.append(f.key.trim(), substituteEnvVars(f.value, envVars));
+          }
+          bodyStr = fd.toString();
+          ct = "application/x-www-form-urlencoded";
         }
       }
-
       const res = await sendProxyRequest({
-        method,
-        url: url.trim(),
-        headers: headersMap,
-        query_params: queryMap,
-        body: METHODS_WITH_BODY.includes(method) && body ? body : null,
-        content_type: METHODS_WITH_BODY.includes(method) && body ? contentType : null,
-        timeout_seconds: 30,
+        method: r.method, url: substitutedUrl, headers: headersMap,
+        query_params: queryMap, body: bodyStr,
+        content_type: bodyStr ? ct : null, timeout_seconds: 30,
       });
-
-      setResponse(res);
-
-      // Save to history
-      const entry: HistoryEntry = {
-        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-        method,
-        url: url.trim(),
-        headers: headersMap,
-        query_params: queryMap,
-        body: METHODS_WITH_BODY.includes(method) ? body : null,
-        content_type: METHODS_WITH_BODY.includes(method) ? contentType : null,
-        timestamp: Date.now(),
-      };
-      const updated = [entry, ...history].slice(0, 50);
-      setHistory(updated);
-      saveHistory(updated);
+      setTabs(prev => prev.map(t => t.id === tab.id ? { ...t, response: res, loading: false } : t));
+      if (tab.name === "新请求" && res.ok) {
+        try {
+          const parsed = new URL(substitutedUrl);
+          const autoName = `${r.method} ${parsed.pathname}${parsed.search ? "?" + parsed.search.slice(0, 20) : ""}`;
+          setTabs(prev => prev.map(t => t.id === tab.id ? { ...t, name: autoName.slice(0, 40) } : t));
+        } catch { /* ignore */ }
+      }
     } catch (err: any) {
-      setError(err.message || "请求失败");
-    } finally {
-      setLoading(false);
+      setTabs(prev => prev.map(t => t.id === tab.id ? { ...t, error: err.message || "请求失败", loading: false } : t));
     }
-  }, [method, url, headers, queryParams, body, contentType, history]);
+  }, [envVars]);
 
-  // ── Clear ──
-  const handleClear = () => {
-    setResponse(null);
-    setError("");
-  };
+  // ── Collection operations ──
+  const saveToCollection = useCallback(() => {
+    // eslint-disable-next-line no-alert
+    const name = prompt("保存请求为", activeTab?.name || "请求");
+    if (!name) return;
+    // eslint-disable-next-line no-alert
+    const collName = prompt("集合名称 (留空选择已有)", "我的集合");
+    if (collName === null) return;
+    setCollections(prev => {
+      let coll = prev.find(c => c.name === collName);
+      if (!coll) { coll = { id: uid(), name: collName || "我的集合", requests: [] }; prev = [...prev, coll]; }
+      const existingIdx = coll.requests.findIndex(r => r.name === name);
+      const reqCopy = JSON.parse(JSON.stringify(activeTab?.request ?? defaultRequest()));
+      if (existingIdx >= 0) coll.requests[existingIdx] = { name, request: reqCopy };
+      else coll.requests.push({ name, request: reqCopy });
+      return prev.map(c => c.id === coll!.id ? { ...coll! } : c);
+    });
+  }, [activeTab]);
 
-  // ── Load from history ──
-  const loadFromHistory = (entry: HistoryEntry) => {
-    setMethod(entry.method);
-    setUrl(entry.url);
-    setHeaders(
-      Object.entries(entry.headers).map(([k, v]) => ({ key: k, value: v, enabled: true }))
-    );
-    setQueryParams(
-      Object.entries(entry.query_params).map(([k, v]) => ({ key: k, value: v, enabled: true }))
-    );
-    setBody(entry.body ?? "");
-    if (entry.content_type) setContentType(entry.content_type);
-    setShowHistory(false);
-    setResponse(null);
-    setError("");
-  };
+  const loadFromCollection = useCallback((reqState: RequestState, name: string) => {
+    const tab = newTab(name); tab.request = JSON.parse(JSON.stringify(reqState));
+    setTabs(prev => [...prev, tab]); setActiveTabId(tab.id);
+  }, []);
 
-  // ── Keyboard shortcut Ctrl+Enter to send ──
+  // ── Keyboard shortcuts ──
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
-        e.preventDefault();
-        handleSend();
-      }
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); if (activeTab) handleSend(activeTab); }
+      if ((e.ctrlKey || e.metaKey) && e.key === "s" && !e.shiftKey && activeTab) { e.preventDefault(); saveToCollection(); }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [handleSend]);
+  }, [activeTab, handleSend, saveToCollection]);
 
-  const hasBody = METHODS_WITH_BODY.includes(method);
+  // ── Derived ──
+  const hasBody = METHODS_WITH_BODY.includes(req.method);
   const responseStatusCode = response?.status ?? 0;
-  const statusBadgeColor =
-    responseStatusCode >= 200 && responseStatusCode < 300
-      ? "var(--success)"
-      : responseStatusCode >= 300 && responseStatusCode < 400
-      ? "var(--info)"
-      : responseStatusCode >= 400 && responseStatusCode < 500
-      ? "var(--warning)"
-      : responseStatusCode >= 500
-      ? "var(--danger)"
-      : "var(--text-muted)";
+  const responseContentType = response ? inferContentType(response.headers) : null;
+  const statusColor =
+    responseStatusCode >= 200 && responseStatusCode < 300 ? "bg-green-500 text-black"
+    : responseStatusCode >= 400 && responseStatusCode < 500 ? "bg-orange-500 text-white"
+    : responseStatusCode >= 500 ? "bg-red-500 text-white"
+    : responseStatusCode >= 300 ? "bg-blue-500 text-white"
+    : "bg-muted text-muted-foreground";
 
+  const formattedBody = useMemo(() => {
+    if (!response?.body) return "";
+    if (bodyViewMode === "raw") return response.body;
+    if (responseContentType?.includes("json")) return tryPrettifyJSON(response.body);
+    if (responseContentType?.includes("xml") || responseContentType?.includes("html")) return tryPrettifyXML(response.body);
+    return tryPrettifyJSON(response.body);
+  }, [response?.body, bodyViewMode, responseContentType]);
+
+  const curlCmd = useMemo(() => toCurl(req, envVars), [
+    req.method, req.url, req.headers, req.body, req.authType,
+    req.authBearerToken, req.authBasicUser, req.authBasicPass, envVars,
+  ]);
+
+  // ── Render ──
   return (
-    <div>
-      <h1>📡 API 客户端</h1>
-      <p style={{ color: "var(--text-muted)", fontSize: "0.9rem", marginBottom: 20 }}>
-        发送 HTTP 请求并查看响应 — 类似 Postman 的接口调试工具。按 Ctrl+Enter 快速发送。
-      </p>
+    <TooltipProvider>
+      <div className="flex flex-col h-full gap-0">
+        {/* ── Header ── */}
+        <div className="flex justify-between items-center mb-1">
+          <div>
+            <h1 className="text-xl font-semibold mb-0.5">📡 API 客户端</h1>
+            <p className="text-xs text-muted-foreground">
+              Ctrl+Enter 发送 · Ctrl+S 保存到集合 · 双击标签改名
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {/* Environment selector */}
+            <Select value={activeEnvId}
+              onValueChange={(v) => { setActiveEnvId(v); lsSet("api-active-env", v); }}
+            >
+              <SelectTrigger className="h-7 text-xs w-32">
+                <SelectValue placeholder="无环境" />
+              </SelectTrigger>
+              <SelectPopup>
+                <SelectItem value="">
+                  <span className="text-muted-foreground">无环境</span>
+                  {!activeEnvId && <SelectItemIndicator />}
+                </SelectItem>
+                {environments.map(e => (
+                  <SelectItem key={e.id} value={e.id}>
+                    {e.name}
+                    {activeEnvId === e.id && <SelectItemIndicator />}
+                  </SelectItem>
+                ))}
+              </SelectPopup>
+            </Select>
 
-      {/* ── Request Builder ── */}
-      <div className="card" style={{ marginBottom: 20 }}>
-        {/* Method + URL + Send row */}
-        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-          <select
-            className="form-input"
-            value={method}
-            onChange={(e) => {
-              setMethod(e.target.value);
-              if (!METHODS_WITH_BODY.includes(e.target.value)) {
-                setActiveTab("headers");
-              }
-            }}
-            style={{
-              flex: "0 0 110px",
-              fontWeight: 650,
-              color: METHOD_COLORS[method] || "var(--text-heading)",
-              fontFamily: "var(--mono)",
-            }}
-          >
-            {HTTP_METHODS.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
+            <Tooltip>
+              <TooltipTrigger>
+                <Button variant="ghost" size="xs" onClick={() => { setSidebarOpen(!sidebarOpen); }}
+                  className="text-[0.7rem]">
+                  {sidebarOpen ? "◀" : "📁"}
+                </Button>
+              </TooltipTrigger>
+              <TooltipPopup>{sidebarOpen ? "收起侧栏" : "展开侧栏"}</TooltipPopup>
+            </Tooltip>
 
-          <input
-            className="form-input"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://api.example.com/endpoint"
-            style={{ flex: 1, fontFamily: "var(--mono)", fontSize: "0.85rem" }}
-          />
-
-          <button
-            className="btn btn--primary"
-            onClick={handleSend}
-            disabled={loading}
-            style={{ flex: "0 0 auto", minWidth: 100 }}
-          >
-            {loading ? "⏳ 发送中..." : "▶ 发送"}
-          </button>
-        </div>
-
-        {/* Tabs */}
-        <div style={{ display: "flex", gap: 2, borderBottom: "1px solid var(--border)", marginBottom: 10 }}>
-          {(["headers", "query", "body"] as const).map((tab) => {
-            if (tab === "body" && !hasBody) return null;
-            const labels: Record<string, string> = { headers: "Headers", query: "Query Params", body: "Body" };
-            const counts: Record<string, number> = {
-              headers: headers.filter((h) => h.enabled && h.key.trim()).length,
-              query: queryParams.filter((q) => q.enabled && q.key.trim()).length,
-              body: body.trim() ? 1 : 0,
-            };
-            return (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                style={{
-                  padding: "6px 14px",
-                  background: "transparent",
-                  border: "none",
-                  borderBottom: activeTab === tab ? "2px solid var(--accent)" : "2px solid transparent",
-                  color: activeTab === tab ? "var(--text-heading)" : "var(--text-muted)",
-                  fontWeight: activeTab === tab ? 600 : 400,
-                  cursor: "pointer",
-                  fontSize: "0.82rem",
-                  fontFamily: "var(--sans)",
-                  transition: "color 140ms var(--ease-out), border-color 140ms var(--ease-out)",
-                }}
-              >
-                {labels[tab]}
-                {counts[tab] > 0 && (
-                  <span style={{ marginLeft: 6, fontSize: "0.7rem", opacity: 0.7 }}>
-                    ({counts[tab]})
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Tab content */}
-        <div style={{ minHeight: 80 }}>
-          {activeTab === "headers" && (
-            <KeyValueEditor
-              pairs={headers.length > 0 ? headers : [{ key: "", value: "", enabled: true }]}
-              onChange={setHeaders}
-              showEnableToggle
-            />
-          )}
-
-          {activeTab === "query" && (
-            <KeyValueEditor
-              pairs={queryParams.length > 0 ? queryParams : [{ key: "", value: "", enabled: true }]}
-              onChange={setQueryParams}
-              showEnableToggle
-            />
-          )}
-
-          {activeTab === "body" && hasBody && (
-            <div>
-              <div className="form-group">
-                <label className="form-label">Content-Type</label>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <select
-                    className="form-input"
-                    value={contentType}
-                    onChange={(e) => setContentType(e.target.value)}
-                    style={{ maxWidth: 300 }}
-                  >
-                    {CONTENT_TYPES.map((ct) => (
-                      <option key={ct} value={ct}>
-                        {ct}
-                      </option>
-                    ))}
-                  </select>
-                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-                    或输入自定义类型
-                  </span>
-                </div>
-              </div>
-              <div className="form-group">
-                <textarea
-                  className="form-input"
-                  value={body}
-                  onChange={(e) => setBody(e.target.value)}
-                  placeholder='{"key": "value"}'
-                  style={{
-                    minHeight: 150,
-                    fontFamily: "var(--mono)",
-                    fontSize: "0.8rem",
-                    resize: "vertical",
-                  }}
+            <Dialog open={curlModalOpen} onOpenChange={setCurlModalOpen}>
+              <DialogTrigger>
+                <Button variant="outline" size="xs" className="text-[0.7rem]" onClick={() => setCurlModalOpen(true)}>
+                  📋 导入 cURL
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>📋 导入 cURL 命令</DialogTitle>
+                </DialogHeader>
+                <textarea value={curlText}
+                  onChange={(e) => { setCurlText(e.target.value); setCurlError(""); }}
+                  placeholder={`curl -X POST 'https://api.example.com/data' \\\n  -H 'Content-Type: application/json' \\\n  -d '{"key":"value"}'`}
+                  className="flex min-h-[150px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm font-mono resize-y outline-none focus-visible:border-ring"
                   rows={8}
                 />
-                {contentType === "application/json" && body.trim() && (
-                  <button
-                    className="btn btn--ghost btn--sm"
-                    onClick={() => {
-                      setBody(tryPrettifyJSON(body));
-                    }}
-                    style={{ marginTop: 4, fontSize: "0.72rem" }}
-                  >
-                    🧹 格式化 JSON
-                  </button>
-                )}
-              </div>
+                {curlError && <p className="text-xs text-destructive mt-2">{curlError}</p>}
+                <DialogFooter>
+                  <DialogClose><Button variant="outline" size="sm">取消</Button></DialogClose>
+                  <Button size="sm" onClick={() => {
+                    const parsed = parseCurl(curlText);
+                    if (!parsed) { setCurlError("无法解析 cURL 命令，请检查格式"); return; }
+                    const tab = newTab(parsed.url ? parsed.url.slice(0, 40) : "导入的请求");
+                    tab.request = { ...defaultRequest(), ...parsed };
+                    setTabs(prev => [...prev, tab]); setActiveTabId(tab.id);
+                    setCurlModalOpen(false); setCurlText(""); setCurlError("");
+                  }}>导入</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+        </div>
+
+        {/* ── Body: Sidebar + Content ── */}
+        <div className="flex flex-1 gap-3 min-h-0">
+          {/* ── Sidebar ── */}
+          {sidebarOpen && (
+            <div className="w-[220px] min-w-[220px] overflow-auto border-r border-border pr-2 flex flex-col gap-2">
+              <Tabs value={sidebarTab} onValueChange={(v) => setSidebarTab(v as "collections" | "envs")}>
+                <TabsList className="w-full">
+                  <TabsTab value="collections" className="flex-1 justify-center text-xs">📁 集合</TabsTab>
+                  <TabsTab value="envs" className="flex-1 justify-center text-xs">🌐 环境</TabsTab>
+                </TabsList>
+
+                <TabsPanel value="collections" className="pt-2">
+                  <div className="flex flex-col gap-1.5">
+                    {collections.map(coll => (
+                      <Collapsible key={coll.id}>
+                        <CollapsibleTrigger className="text-xs">
+                          {coll.name}
+                          <span className="text-muted-foreground ml-1">({coll.requests.length})</span>
+                        </CollapsibleTrigger>
+                        <CollapsiblePanel>
+                          <div className="flex flex-col gap-0.5 ml-2 mt-1">
+                            {coll.requests.map((cr, i) => (
+                              <div key={i} onClick={() => loadFromCollection(cr.request, cr.name)}
+                                className="flex items-center gap-1.5 cursor-pointer px-1.5 py-1 rounded text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                              >
+                                <span className={cn("text-[0.6rem] font-bold font-mono", METHOD_COLORS[cr.request.method])}>
+                                  {cr.request.method}
+                                </span>
+                                <span className="truncate">{cr.name}</span>
+                              </div>
+                            ))}
+                            {coll.requests.length === 0 && (
+                              <div className="text-[0.7rem] text-muted-foreground px-1.5 py-1">空集合</div>
+                            )}
+                          </div>
+                        </CollapsiblePanel>
+                      </Collapsible>
+                    ))}
+                    {collections.length === 0 && (
+                      <div className="text-xs text-muted-foreground p-2">
+                        尚未保存任何请求。<br />发送后按 Ctrl+S 保存。
+                      </div>
+                    )}
+                    <Button variant="ghost" size="xs" onClick={saveToCollection} className="self-start text-xs">
+                      💾 保存当前请求
+                    </Button>
+                  </div>
+                </TabsPanel>
+
+                <TabsPanel value="envs" className="pt-2">
+                  <div className="flex flex-col gap-1.5">
+                    {environments.map(env => (
+                      <div key={env.id} onClick={() => { setActiveEnvId(env.id); lsSet("api-active-env", env.id); }}
+                        className={cn(
+                          "p-2 rounded-md cursor-pointer text-xs transition-colors",
+                          activeEnvId === env.id
+                            ? "bg-primary/10 border border-primary/30"
+                            : "border border-transparent hover:bg-muted"
+                        )}
+                      >
+                        <div className="flex justify-between items-center">
+                          <span className="font-medium text-foreground">{env.name}</span>
+                          <Button variant="ghost" size="icon-xs" onClick={(e) => {
+                            e.stopPropagation();
+                            if (confirm(`删除环境 "${env.name}"？`)) {
+                              setEnvironments(prev => prev.filter(x => x.id !== env.id));
+                              if (activeEnvId === env.id) { setActiveEnvId(""); lsSet("api-active-env", ""); }
+                            }
+                          }} className="text-[0.6rem] text-muted-foreground hover:text-destructive">✕</Button>
+                        </div>
+                        <div className="text-muted-foreground mt-0.5">{Object.keys(env.variables).length} 个变量</div>
+                      </div>
+                    ))}
+                    <Button variant="ghost" size="xs" onClick={() => {
+                      // eslint-disable-next-line no-alert
+                      const name = prompt("环境名称");
+                      if (!name) return;
+                      const env: Environment = { id: uid(), name, variables: {} };
+                      setEnvironments(prev => [...prev, env]);
+                      setActiveEnvId(env.id); lsSet("api-active-env", env.id);
+                    }} className="self-start text-xs">+ 新建环境</Button>
+
+                    {activeEnv && (
+                      <div className="mt-2 border-t border-border pt-2">
+                        <div className="text-xs font-medium text-foreground mb-2">
+                          变量: {activeEnv.name}
+                        </div>
+                        <KeyValueEditor
+                          pairs={Object.entries(activeEnv.variables).map(([k, v]) => ({ key: k, value: v, enabled: true }))}
+                          onChange={(pairs) => {
+                            const vars: Record<string, string> = {};
+                            for (const p of pairs) { if (p.key.trim()) vars[p.key.trim()] = p.value; }
+                            setEnvironments(prev => prev.map(e =>
+                              e.id === activeEnv.id ? { ...e, variables: vars } : e
+                            ));
+                          }}
+                          showEnableToggle={false}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </TabsPanel>
+              </Tabs>
             </div>
           )}
+
+          {/* ── Main Content ── */}
+          <div className="flex-1 min-w-0 flex flex-col overflow-auto">
+            {/* Request Tab bar */}
+            <TabBar tabs={tabs} activeId={activeTabId}
+              onSelect={setActiveTabId} onClose={closeTab} onAdd={addTab} />
+
+            {/* ── Request Builder Card ── */}
+            <div className="rounded-xl border border-border bg-card p-4 mb-4">
+              {/* Method + URL + Send row */}
+              <div className="flex gap-2 mb-3">
+                <Select value={req.method} onValueChange={(v) => updateReq({ method: v as HttpMethod })}>
+                  <SelectTrigger className={cn("w-[100px] font-bold font-mono text-sm", METHOD_COLORS[req.method])}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectPopup>
+                    {HTTP_METHODS.map(m => (
+                      <SelectItem key={m} value={m}>
+                        <span className={cn("font-mono font-bold", METHOD_COLORS[m])}>{m}</span>
+                        {req.method === m && <SelectItemIndicator />}
+                      </SelectItem>
+                    ))}
+                  </SelectPopup>
+                </Select>
+
+                <Input value={req.url}
+                  onChange={(e) => updateReq({ url: e.target.value })}
+                  placeholder={activeEnv ? "https://{{host}}/api/endpoint" : "https://api.example.com/endpoint"}
+                  className="flex-1 font-mono text-sm" />
+
+                <Button onClick={() => activeTab && handleSend(activeTab)} disabled={loading}
+                  className="min-w-[100px]">
+                  {loading ? "⏳" : "▶"} 发送
+                </Button>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Button variant="outline" size="icon-sm" onClick={() => { navigator.clipboard.writeText(curlCmd); }}>
+                      📋
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipPopup>复制 cURL</TooltipPopup>
+                </Tooltip>
+              </div>
+
+              {/* Request config tabs */}
+              <Tabs value={reqConfigTab} onValueChange={setReqConfigTab}>
+                <TabsList>
+                  <TabsTab value="headers" className="text-xs">
+                    Headers
+                    {req.headers.filter(h => h.enabled && h.key.trim()).length > 0 && (
+                      <span className="ml-1 text-[0.65rem] opacity-60">
+                        ({req.headers.filter(h => h.enabled && h.key.trim()).length})
+                      </span>
+                    )}
+                  </TabsTab>
+                  <TabsTab value="query" className="text-xs">
+                    Params
+                    {req.queryParams.filter(q => q.enabled && q.key.trim()).length > 0 && (
+                      <span className="ml-1 text-[0.65rem] opacity-60">
+                        ({req.queryParams.filter(q => q.enabled && q.key.trim()).length})
+                      </span>
+                    )}
+                  </TabsTab>
+                  {hasBody && (
+                    <TabsTab value="body" className="text-xs">
+                      Body
+                      {(req.body.trim() || req.formData.filter(f => f.enabled && f.key.trim()).length > 0) && (
+                        <span className="ml-1 text-[0.65rem] opacity-60">●</span>
+                      )}
+                    </TabsTab>
+                  )}
+                  <TabsTab value="auth" className="text-xs">
+                    Auth
+                    {req.authType !== "none" && (
+                      <span className="ml-1 text-[0.65rem] opacity-60">●</span>
+                    )}
+                  </TabsTab>
+                </TabsList>
+
+                <TabsPanel value="headers">
+                  <KeyValueEditor
+                    pairs={req.headers.length > 0 ? req.headers : [{ key: "", value: "", enabled: true }]}
+                    onChange={(pairs) => updateReq({ headers: pairs })} showEnableToggle />
+                </TabsPanel>
+                <TabsPanel value="query">
+                  <KeyValueEditor
+                    pairs={req.queryParams.length > 0 ? req.queryParams : [{ key: "", value: "", enabled: true }]}
+                    onChange={(pairs) => updateReq({ queryParams: pairs })} showEnableToggle />
+                </TabsPanel>
+                {hasBody && (
+                  <TabsPanel value="body">
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">模式</span>
+                        <Select value={req.bodyMode} onValueChange={(v) => updateReq({ bodyMode: v as BodyMode })}>
+                          <SelectTrigger className="h-7 text-xs w-40">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectPopup>
+                            <SelectItem value="raw">raw</SelectItem>
+                            <SelectItem value="form-data">form-data</SelectItem>
+                            <SelectItem value="x-www-form-urlencoded">x-www-form-urlencoded</SelectItem>
+                          </SelectPopup>
+                        </Select>
+                        {req.bodyMode === "raw" && (
+                          <Select value={req.contentType} onValueChange={(v) => updateReq({ contentType: v })}>
+                            <SelectTrigger className="h-7 text-xs w-48">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectPopup>
+                              {["application/json", "text/plain", "text/html", "application/xml", "application/x-www-form-urlencoded"].map(ct =>
+                                <SelectItem key={ct} value={ct}>{ct}</SelectItem>
+                              )}
+                            </SelectPopup>
+                          </Select>
+                        )}
+                      </div>
+                      {req.bodyMode === "raw" ? (
+                        <div>
+                          <textarea value={req.body}
+                            onChange={(e) => updateReq({ body: e.target.value })}
+                            placeholder='{"key": "value"}'
+                            className="flex min-h-[150px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm font-mono resize-y outline-none focus-visible:border-ring"
+                            rows={8}
+                          />
+                          {req.contentType === "application/json" && req.body.trim() && (
+                            <Button variant="ghost" size="xs"
+                              onClick={() => updateReq({ body: tryPrettifyJSON(req.body) })}
+                              className="mt-1 text-xs">🧹 格式化 JSON</Button>
+                          )}
+                        </div>
+                      ) : (
+                        <KeyValueEditor
+                          pairs={req.formData.length > 0 ? req.formData : [{ key: "", value: "", enabled: true }]}
+                          onChange={(pairs) => updateReq({ formData: pairs })} showEnableToggle />
+                      )}
+                    </div>
+                  </TabsPanel>
+                )}
+                <TabsPanel value="auth">
+                  <div className="flex flex-col gap-3 max-w-sm">
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground block mb-1.5">认证类型</label>
+                      <Select value={req.authType} onValueChange={(v) => updateReq({ authType: v as AuthType })}>
+                        <SelectTrigger className="w-40 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectPopup>
+                          <SelectItem value="none">无认证</SelectItem>
+                          <SelectItem value="bearer">Bearer Token</SelectItem>
+                          <SelectItem value="basic">Basic Auth</SelectItem>
+                        </SelectPopup>
+                      </Select>
+                    </div>
+                    {req.authType === "bearer" && (
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground block mb-1.5">Token</label>
+                        <Input value={req.authBearerToken}
+                          onChange={(e) => updateReq({ authBearerToken: e.target.value })}
+                          placeholder={activeEnv ? "{{token}}" : "eyJ..."}
+                          className="font-mono text-sm" />
+                      </div>
+                    )}
+                    {req.authType === "basic" && (
+                      <>
+                        <div>
+                          <label className="text-xs font-medium text-muted-foreground block mb-1.5">用户名</label>
+                          <Input value={req.authBasicUser}
+                            onChange={(e) => updateReq({ authBasicUser: e.target.value })}
+                            placeholder="admin" className="max-w-[300px]" />
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-muted-foreground block mb-1.5">密码</label>
+                          <Input value={req.authBasicPass}
+                            onChange={(e) => updateReq({ authBasicPass: e.target.value })}
+                            type="password" placeholder="••••" className="max-w-[300px]" />
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </TabsPanel>
+              </Tabs>
+            </div>
+
+            {/* ── Error ── */}
+            {thisError && (
+              <div className="rounded-lg bg-destructive/10 border border-destructive/30 text-destructive text-sm px-4 py-3 mb-3">
+                {thisError}
+              </div>
+            )}
+
+            {/* ── Response ── */}
+            {response && (
+              <div className="rounded-xl border border-border bg-card p-4">
+                {/* Status bar */}
+                <div className="flex items-center flex-wrap gap-2 mb-3">
+                  <span className={cn(
+                    "inline-flex items-center px-3 py-1 rounded-full text-sm font-bold font-mono",
+                    statusColor,
+                  )}>
+                    {response.status || "—"} {response.status_text}
+                  </span>
+                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-secondary text-muted-foreground font-mono">
+                    ⏱ {formatTiming(response.timing_ms)}
+                  </span>
+                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-secondary text-muted-foreground font-mono">
+                    📦 {formatBytes(response.body)}
+                  </span>
+                  {responseContentType && (
+                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[0.7rem] bg-secondary text-muted-foreground">
+                      {responseContentType.split(";")[0]}
+                    </span>
+                  )}
+                  <div className="flex-1" />
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <Button variant="ghost" size="xs" onClick={() => { navigator.clipboard.writeText(response.body); }}>
+                        📋 复制响应
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipPopup>复制响应体到剪贴板</TooltipPopup>
+                  </Tooltip>
+                  <Button variant="ghost" size="xs"
+                    onClick={() => setTabs(prev => prev.map(t =>
+                      t.id === activeTabId ? { ...t, response: null, error: "" } : t
+                    ))}
+                  >✕ 清除</Button>
+                </div>
+
+                {/* Response tabs */}
+                <Tabs value={respTab} onValueChange={setRespTab}>
+                  <TabsList>
+                    <TabsTab value="body" className="text-xs">Body</TabsTab>
+                    <TabsTab value="headers" className="text-xs">
+                      Headers
+                      <span className="ml-1 text-[0.65rem] opacity-60">({Object.keys(response.headers).length})</span>
+                    </TabsTab>
+                    <TabsTab value="curl" className="text-xs">cURL</TabsTab>
+                  </TabsList>
+
+                  <TabsPanel value="body">
+                    {/* View mode toggles */}
+                    <div className="flex gap-1 mb-2">
+                      {(["pretty", "raw", "preview"] as const).map(mode => (
+                        <Button key={mode} variant="ghost" size="xs"
+                          onClick={() => setBodyViewMode(mode)}
+                          className={cn(
+                            "text-[0.7rem] px-2",
+                            bodyViewMode === mode
+                              ? "bg-secondary text-foreground font-medium"
+                              : "text-muted-foreground"
+                          )}
+                        >
+                          {mode === "pretty" ? "✨ Pretty" : mode === "raw" ? "📄 Raw" : "🖼 Preview"}
+                        </Button>
+                      ))}
+                    </div>
+
+                    {bodyViewMode === "preview" && responseContentType?.includes("html") ? (
+                      <iframe srcDoc={response.body}
+                        className="w-full h-[400px] rounded-md border border-border bg-white" />
+                    ) : (
+                      <pre className="max-h-[500px] overflow-auto font-mono text-[0.78rem] whitespace-pre-wrap break-all p-3 rounded-md bg-secondary border border-border">
+                        {formattedBody || "(空响应)"}
+                      </pre>
+                    )}
+                  </TabsPanel>
+
+                  <TabsPanel value="headers">
+                    <div className="max-h-[400px] overflow-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-border">
+                            <th className="text-left p-2 w-[35%] text-xs font-medium text-muted-foreground uppercase tracking-wider">Key</th>
+                            <th className="text-left p-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">Value</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {Object.entries(response.headers).map(([k, v]) => (
+                            <tr key={k} className="border-b border-border/50 hover:bg-muted/30">
+                              <td className="p-2 font-mono text-xs text-foreground">{k}</td>
+                              <td className="p-2 font-mono text-xs break-all">{v}</td>
+                            </tr>
+                          ))}
+                          {Object.keys(response.headers).length === 0 && (
+                            <tr><td colSpan={2} className="p-4 text-xs text-muted-foreground text-center">无响应头</td></tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </TabsPanel>
+
+                  <TabsPanel value="curl">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-xs text-muted-foreground">等效 cURL 命令</span>
+                      <Button variant="ghost" size="xs" onClick={() => navigator.clipboard.writeText(curlCmd)}>
+                        📋 复制
+                      </Button>
+                    </div>
+                    <pre className="p-3 rounded-md bg-secondary border border-border font-mono text-xs whitespace-pre-wrap break-all max-h-[300px] overflow-auto">
+                      {curlCmd}
+                    </pre>
+                  </TabsPanel>
+                </Tabs>
+              </div>
+            )}
+          </div>
         </div>
       </div>
-
-      {/* ── Error ── */}
-      {error && (
-        <div className="result-banner result-banner--error" style={{ marginBottom: 16 }}>
-          {error}
-        </div>
-      )}
-
-      {/* ── Response ── */}
-      {response && (
-        <div className="card">
-          <div
-            className="card__header"
-            style={{ flexWrap: "wrap", gap: 8 }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  padding: "4px 12px",
-                  borderRadius: "var(--radius-pill)",
-                  fontSize: "0.85rem",
-                  fontWeight: 650,
-                  background: statusBadgeColor,
-                  color: responseStatusCode >= 200 && responseStatusCode < 300 ? "var(--bg-deep)" : "#fff",
-                  fontFamily: "var(--mono)",
-                }}
-              >
-                {response.status || "—"} {response.status_text || ""}
-              </span>
-              <span
-                style={{
-                  padding: "4px 12px",
-                  borderRadius: "var(--radius-pill)",
-                  fontSize: "0.78rem",
-                  fontWeight: 600,
-                  background: "var(--bg-surface)",
-                  color: "var(--text-muted)",
-                  fontFamily: "var(--mono)",
-                }}
-              >
-                ⏱ {formatTiming(response.timing_ms)}
-              </span>
-              <span
-                style={{
-                  padding: "4px 12px",
-                  borderRadius: "var(--radius-pill)",
-                  fontSize: "0.78rem",
-                  fontWeight: 600,
-                  background: "var(--bg-surface)",
-                  color: "var(--text-muted)",
-                  fontFamily: "var(--mono)",
-                }}
-              >
-                📦 {formatBytes(response.body)}
-              </span>
-            </div>
-
-            <button className="btn btn--ghost btn--sm" onClick={handleClear}>
-              ✕ 清除
-            </button>
-          </div>
-
-          {/* Response tabs */}
-          <div style={{ display: "flex", gap: 2, borderBottom: "1px solid var(--border)", marginBottom: 10 }}>
-            {(["body", "headers"] as const).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setResponseTab(tab)}
-                style={{
-                  padding: "6px 14px",
-                  background: "transparent",
-                  border: "none",
-                  borderBottom: responseTab === tab ? "2px solid var(--accent)" : "2px solid transparent",
-                  color: responseTab === tab ? "var(--text-heading)" : "var(--text-muted)",
-                  fontWeight: responseTab === tab ? 600 : 400,
-                  cursor: "pointer",
-                  fontSize: "0.82rem",
-                  fontFamily: "var(--sans)",
-                  transition: "color 140ms var(--ease-out), border-color 140ms var(--ease-out)",
-                }}
-              >
-                {tab === "body" ? "Body" : "Headers"}
-                {tab === "headers" && (
-                  <span style={{ marginLeft: 6, fontSize: "0.7rem", opacity: 0.7 }}>
-                    ({Object.keys(response.headers).length})
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-
-          {/* Response tab content */}
-          {responseTab === "body" && (
-            <pre
-              style={{
-                maxHeight: 500,
-                overflow: "auto",
-                fontFamily: "var(--mono)",
-                fontSize: "0.78rem",
-                whiteSpace: "pre-wrap",
-                wordBreak: "break-all",
-                padding: 12,
-                background: "var(--bg-surface)",
-                borderRadius: "var(--radius)",
-                border: "1px solid var(--border)",
-              }}
-            >
-              {tryPrettifyJSON(response.body) || "(空响应)"}
-            </pre>
-          )}
-
-          {responseTab === "headers" && (
-            <div style={{ maxHeight: 400, overflow: "auto" }}>
-              <table style={{ width: "100%", fontSize: "0.78rem" }}>
-                <thead>
-                  <tr>
-                    <th style={{ textAlign: "left", padding: "6px 12px", width: "35%" }}>Key</th>
-                    <th style={{ textAlign: "left", padding: "6px 12px" }}>Value</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {Object.entries(response.headers).map(([k, v]) => (
-                    <tr key={k}>
-                      <td style={{ padding: "4px 12px", fontFamily: "var(--mono)", fontSize: "0.75rem", color: "var(--text-heading)" }}>
-                        {k}
-                      </td>
-                      <td style={{ padding: "4px 12px", fontFamily: "var(--mono)", fontSize: "0.75rem", wordBreak: "break-all" }}>
-                        {v}
-                      </td>
-                    </tr>
-                  ))}
-                  {Object.keys(response.headers).length === 0 && (
-                    <tr>
-                      <td colSpan={2} style={{ padding: "12px", color: "var(--text-muted)", textAlign: "center" }}>
-                        无响应头
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── History ── */}
-      {history.length > 0 && (
-        <details
-          className="card"
-          style={{ cursor: "pointer", marginTop: 16 }}
-          open={showHistory}
-          onToggle={(e) => setShowHistory((e.target as HTMLDetailsElement).open)}
-        >
-          <summary style={{ fontWeight: 600, fontSize: "0.9rem", padding: 4 }}>
-            🕓 历史记录 ({history.length})
-          </summary>
-          <div style={{ maxHeight: 350, overflow: "auto", marginTop: 8 }}>
-            {history.map((entry) => (
-              <div
-                key={entry.id}
-                onClick={() => loadFromHistory(entry)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  padding: "8px 12px",
-                  borderRadius: "var(--radius)",
-                  cursor: "pointer",
-                  marginBottom: 2,
-                  transition: "background 120ms var(--ease-out)",
-                }}
-                className="api-history-row"
-              >
-                <span
-                  style={{
-                    display: "inline-flex",
-                    padding: "2px 8px",
-                    borderRadius: "var(--radius-pill)",
-                    fontSize: "0.68rem",
-                    fontWeight: 700,
-                    background: METHOD_COLORS[entry.method] || "var(--text-muted)",
-                    color: "#fff",
-                    minWidth: 52,
-                    justifyContent: "center",
-                    fontFamily: "var(--mono)",
-                    flexShrink: 0,
-                  }}
-                >
-                  {entry.method}
-                </span>
-                <code
-                  style={{
-                    flex: 1,
-                    fontFamily: "var(--mono)",
-                    fontSize: "0.75rem",
-                    color: "var(--text-heading)",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {entry.url}
-                </code>
-                <span style={{ fontSize: "0.68rem", color: "var(--text-muted)", flexShrink: 0 }}>
-                  {new Date(entry.timestamp).toLocaleTimeString()}
-                </span>
-              </div>
-            ))}
-          </div>
-          <button
-            className="btn btn--danger btn--sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              setHistory([]);
-              saveHistory([]);
-            }}
-            style={{ marginTop: 8, fontSize: "0.72rem" }}
-          >
-            🗑 清空历史
-          </button>
-        </details>
-      )}
-
-      {/* History row hover style */}
-      <style>{`
-        .api-history-row:hover {
-          background: var(--bg-surface);
-        }
-      `}</style>
-    </div>
+    </TooltipProvider>
   );
 }
