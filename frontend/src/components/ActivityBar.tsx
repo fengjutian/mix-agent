@@ -127,18 +127,6 @@ export default function ActivityBar({ sidebarOpen, onToggleSidebar, onOpenSettin
   return (
     <nav className="activity-bar" aria-label="主导航">
       <div className="activity-bar__top">
-        {/* Sidebar toggle */}
-        <button
-          className={`activity-bar__item${sidebarOpen ? "" : " activity-bar__item--toggle-off"}`}
-          onClick={onToggleSidebar}
-          title={sidebarOpen ? "收起侧边栏" : "展开侧边栏"}
-          aria-label={sidebarOpen ? "收起侧边栏" : "展开侧边栏"}
-        >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="3" width="18" height="18" rx="2" />
-            <line x1="9" y1="3" x2="9" y2="21" />
-          </svg>
-        </button>
 
         {activities.map((item) => (
           <button
