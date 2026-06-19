@@ -14,7 +14,6 @@ const statusBadge: Record<string, string> = {
   running:   "badge--info",
   pending:   "badge--warning",
   cancelled: "badge--warning",
-  awaiting_approval: "badge--warning",
 };
 
 export default function TaskDetailPage() {

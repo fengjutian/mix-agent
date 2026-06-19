@@ -162,7 +162,7 @@ export default function HomePage() {
               Task created: <strong>{result.task_id}</strong> — 状态：{" "}
               <span
                 className={`badge ${
-                  result.status === "awaiting_approval" ? "badge--warning" : "badge--info"
+                  result.status === "cancelled" ? "badge--warning" : "badge--info"
                 }`}
               >
                 {result.status}

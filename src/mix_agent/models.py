@@ -179,20 +179,6 @@ class AuditFinding(Base):
     )
 
 
-# ©¤©¤ Approvals ©¤©¤
-
-
-class Approval(Base):
-    __tablename__ = "approvals"
-
-    id: Mapped[uuid.UUID] = mapped_column(UniversalUUID(), primary_key=True, default=uuid.uuid4)
-    finding_id: Mapped[uuid.UUID] = mapped_column(UniversalUUID(), ForeignKey("audit_findings.id", ondelete="CASCADE"), nullable=False)
-    auditor_id: Mapped[uuid.UUID | None] = mapped_column(UniversalUUID(), ForeignKey("users.id"))
-    decision: Mapped[str] = mapped_column(String(16), nullable=False)
-    feedback: Mapped[str | None] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-
-
 # ©¤©¤ Audit Reports ©¤©¤
 
 

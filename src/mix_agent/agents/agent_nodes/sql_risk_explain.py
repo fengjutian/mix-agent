@@ -19,7 +19,7 @@ async def sql_risk_explain_node(state: AgentState) -> dict:
 
     1. 调用 SQLGuard 对变更的 SQL 文件进行审计
     2. 对高风险 SQL 调用 LLM 解读
-    3. 发现 danger 级别操作时设置 pending_approval（图的条件路由会导向 human_approval）
+    3. 发现 danger 级别 SQL 时由 SQLGuard 标记为高危
     """
     # 1. 收集 SQL 文件和语句
     sql_files = [
