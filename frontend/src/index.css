@@ -1,9 +1,59 @@
+@import "tailwindcss";
+
 /* ═══════════════════════════════════════════
    mix-agent — Design Tokens & Base
-   Inspired by mainecoon.tech
+   shadcn/ui + Tailwind v4 + existing VS Code dark theme
    ═══════════════════════════════════════════ */
 
+/* ── Expose shadcn CSS variables as Tailwind color utilities ── */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--sh-accent);
+  --color-accent-foreground: var(--sh-accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border-color);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius: 0.625rem;
+
+  /* Preserve existing font stacks */
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Code", Consolas, monospace;
+}
+
 :root {
+  /* ═══ shadcn/ui design tokens (mapped from mix-agent palette) ═══ */
+  --background: #0b0b12;
+  --foreground: #9498a3;
+  --card: #181822;
+  --card-foreground: #edeef0;
+  --primary: #c6ff2e;
+  --primary-foreground: #1a1e00;
+  --secondary: #111118;
+  --secondary-foreground: #edeef0;
+  --muted: #14141e;
+  --muted-foreground: #646878;
+  /* sh-accent avoids collision with existing --accent (neon green) */
+  --sh-accent: #111118;
+  --sh-accent-foreground: #edeef0;
+  --destructive: #ff5c5c;
+  --destructive-foreground: #ffffff;
+  --border-color: #232332;
+  --input: #14141e;
+  --ring: #c6ff2e;
+  --radius: 0.625rem;
+
+  /* ═══ Existing mix-agent tokens (unchanged, backward compat) ═══ */
   /* Surfaces */
   --bg-deep: #060609;
   --bg: #0b0b12;

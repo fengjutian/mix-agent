@@ -1,7 +1,7 @@
 """Phase 2 AI Agent API — 基于 LangGraph 的智能审计流水线。
 
 接收自然语言描述 → Git Diff → parse_requirement → orchestrator → 
-code_review → sql_risk_explain → [human_approval] → summary → 报告。
+code_review → sql_risk_explain → auto_fix → summary → 报告。
 """
 
 from __future__ import annotations
@@ -12,7 +12,6 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException
 
 from mix_agent.agents.graph import agent_graph
-from mix_agent.api.v1_approvals import register_pending_approval
 from mix_agent.schemas import AgentState, AgentRunRequest, AgentRunResponse, TaskStatus
 from mix_agent.tools.vcs.git_tool import GitTool
 
@@ -90,13 +89,7 @@ async def run_agent(req: AgentRunRequest):
             message=f"Agent execution failed: {e}",
         )
 
-    # ── 4. 处理 HiL 审批 ──
-    pending = final_state.get("pending_approval")
-    if pending is not None:
-        pending.task_id = task_id
-        register_pending_approval(task_id, pending)
-
-    # ── 5. 存储结果 ──
+    # ── 4. 存储结果 ──
     _agent_results[task_id] = {
         "task_id": task_id,
         "status": final_state.get("task_status", TaskStatus.COMPLETED),

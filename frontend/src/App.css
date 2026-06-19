@@ -684,40 +684,6 @@ tbody tr:hover {
   border: 1px solid rgba(255, 92, 92, 0.25);
 }
 
-/* ── Approval Card ── */
-
-.approval-card {
-  padding: 18px 20px;
-  border-radius: var(--radius-lg);
-  background: var(--bg-card);
-  border: 1px solid var(--border-light);
-  margin-bottom: 12px;
-}
-
-.approval-card__meta {
-  display: flex;
-  gap: 16px;
-  margin-bottom: 8px;
-  font-size: 0.82rem;
-  color: var(--text-muted);
-}
-
-.approval-card__meta strong {
-  color: var(--text-heading);
-}
-
-.approval-card__prompt {
-  font-size: 0.92rem;
-  color: var(--text);
-  line-height: 1.55;
-  margin-bottom: 14px;
-}
-
-.approval-card__actions {
-  display: flex;
-  gap: 8px;
-}
-
 /* ── Divider ── */
 
 .divider {

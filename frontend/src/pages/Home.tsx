@@ -130,8 +130,8 @@ export default function HomePage() {
               onChange={(e) => setDesc(e.target.value)}
               placeholder={
                 mode === "agent"
-                  ? "e.g. 重点检查用户模块的 SQL 注入和权限问题"
-                  : "例如：检查用户模块 SQL 安全性"
+                  ? "e.g. 重点检查数据库的 SQL 注入和权限问题"
+                  : "例如：检查数据库 SQL 安全性"
               }
             />
           </div>

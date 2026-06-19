@@ -6,7 +6,7 @@ import json
 
 from mix_agent.agents.prompts import PromptManager
 from mix_agent.services.prompt_store import prompt_store
-from mix_agent.schemas import AgentState, ApprovalRequest, TaskStatus
+from mix_agent.schemas import AgentState, TaskStatus
 from mix_agent.services.llm import llm_client
 from mix_agent.services.node_config import get_provider
 from mix_agent.tools.security.sql_guard import SQLGuard, RiskLevel
@@ -70,26 +70,12 @@ async def sql_risk_explain_node(state: AgentState) -> dict:
         except Exception:
             pass
 
-    # 3. 设置是否需审批
-    needs_approval = len(danger_items) > 0
-    pending = None
-    if needs_approval:
-        pending = ApprovalRequest(
-            task_id="",
-            node_name="sql_risk_explain",
-            prompt=f"发现 {len(danger_items)} 个高危 SQL 操作，需要人工审批",
-            context={
-                "danger_count": len(danger_items),
-                "items": danger_items,
-            },
-        )
-
+    # 3. 返回审计结果
     return {
         "sql_audit_result": {
             "findings": all_results,
             "llm_explanation": llm_explanation,
-            "needs_approval": needs_approval,
+            "needs_approval": False,
         },
-        "pending_approval": pending,
-        "task_status": TaskStatus.AWAITING_APPROVAL if needs_approval else state.task_status,
+        "task_status": state.task_status,
     }

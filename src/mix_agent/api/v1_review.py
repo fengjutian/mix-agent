@@ -408,3 +408,152 @@ def list_dirs(
         raise HTTPException(status_code=400, detail=str(e))
     except RuntimeError as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ═══════════════════════════════════════════════════════════
+# File Tree
+# ═══════════════════════════════════════════════════════════
+
+
+@router.get("/tree")
+def file_tree(
+    dir_path: str = Query("", description="子目录（空=仓库根）"),
+    revision: str = Query("HEAD", description="分支/commit"),
+    repo_path: str = Query(".", description="仓库路径"),
+) -> dict:
+    """列出仓库目录树（文件和子目录）。"""
+    try:
+        git = _git(repo_path)
+        prefix = dir_path.strip("/") + "/" if dir_path.strip("/") else ""
+        rev = f"{revision}:{prefix}" if prefix else f"{revision}:"
+        output = git._run_git(["ls-tree", "--name-only", rev])
+
+        entries: list[dict] = []
+        for line in output.splitlines():
+            name = line.strip()
+            if not name:
+                continue
+            is_dir = name.endswith("/")
+            clean_name = name.rstrip("/")
+            full = f"{prefix}{clean_name}"
+            entries.append({
+                "name": clean_name,
+                "path": full,
+                "is_dir": is_dir,
+            })
+
+        return {
+            "ok": True,
+            "repo_path": str(git.repo_path),
+            "revision": revision,
+            "dir_path": dir_path,
+            "entries": sorted(entries, key=lambda e: (not e["is_dir"], e["name"].lower())),
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ═══════════════════════════════════════════════════════════
+# Code Search (grep)
+# ═══════════════════════════════════════════════════════════
+
+
+@router.get("/search")
+def search_code(
+    q: str = Query(..., description="搜索关键词"),
+    repo_path: str = Query(".", description="仓库路径"),
+    revision: str = Query("HEAD", description="分支/commit"),
+    case_sensitive: bool = Query(False),
+    max_results: int = Query(50, ge=1, le=200),
+) -> dict:
+    """在仓库中搜索代码（git grep）。"""
+    try:
+        git = _git(repo_path)
+        args = ["grep", "--line-number", "-I"]
+        if not case_sensitive:
+            args.append("-i")
+        args.extend(["-n", f"--max-count={max_results}"])
+        args.extend([q, revision])
+        output = git._run_git(args)
+
+        results: list[dict] = []
+        for line in output.splitlines():
+            if not line.strip():
+                continue
+            parts = line.split(":", 2)
+            if len(parts) >= 3:
+                results.append({
+                    "file": parts[0].strip(),
+                    "line": int(parts[1]) if parts[1].strip().isdigit() else parts[1].strip(),
+                    "content": parts[2].rstrip(),
+                })
+
+        return {
+            "ok": True,
+            "query": q,
+            "revision": revision,
+            "results": results[:max_results],
+            "total": len(results),
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ═══════════════════════════════════════════════════════════
+# Review Checklist
+# ═══════════════════════════════════════════════════════════
+
+import json as _json
+import threading as _threading
+from pathlib import Path as _Path
+
+_CHECKLIST_PATH = _Path(__file__).resolve().parent.parent.parent.parent / "config" / "checklist_templates.json"
+_checklist_lock = _threading.Lock()
+
+
+def _load_checklists() -> dict:
+    try:
+        if _CHECKLIST_PATH.exists():
+            return _json.loads(_CHECKLIST_PATH.read_text(encoding="utf-8"))
+    except (_json.JSONDecodeError, OSError):
+        pass
+    return {"default": {"name": "默认清单", "items": [
+        {"id": "security", "label": "安全检查", "hint": "SQL注入、XSS、权限绕过等"},
+        {"id": "performance", "label": "性能检查", "hint": "N+1查询、内存泄漏、大循环等"},
+        {"id": "style", "label": "代码风格", "hint": "命名、注释、格式一致性"},
+        {"id": "error_handling", "label": "错误处理", "hint": "异常捕获、错误日志、fallback"},
+        {"id": "testing", "label": "测试覆盖", "hint": "单元测试、集成测试是否充分"},
+    ]}}
+
+
+def _save_checklists(data: dict) -> None:
+    _CHECKLIST_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with _checklist_lock:
+        _CHECKLIST_PATH.write_text(_json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+@router.get("/checklists")
+def list_checklists() -> dict:
+    """列出所有审查清单模板。"""
+    return {"ok": True, "checklists": _load_checklists()}
+
+
+@router.put("/checklists")
+def save_checklist(body: dict) -> dict:
+    """保存审查清单模板。
+
+    Example: PUT /review/checklists
+    {"name": "安全审查", "items": [{"id":"xss","label":"XSS检查"},...]}
+    """
+    name = body.get("name", "").strip()
+    items = body.get("items", [])
+    if not name or not isinstance(items, list):
+        return {"ok": False, "error": "name and items[] are required."}
+    data = _load_checklists()
+    data[name] = {"name": name, "items": items}
+    _save_checklists(data)
+    return {"ok": True, "name": name, "items": len(items)}

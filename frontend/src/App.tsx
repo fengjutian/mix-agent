@@ -10,7 +10,6 @@ import SettingsModal from "./components/SettingsModal";
 import LockScreen from "./pages/LockScreen";
 import HomePage from "./pages/Home";
 import TaskDetailPage from "./pages/TaskDetail";
-import ApprovalsPage from "./pages/Approvals";
 import SettingsPage from "./pages/Settings";
 import PromptsPage from "./pages/Prompts";
 import MCPServersPage from "./pages/MCPServers";
@@ -120,11 +119,6 @@ export default function App() {
           <Route path="/tasks/:id" element={
             <Layout>
               <ProtectedRoute><TaskDetailPage /></ProtectedRoute>
-            </Layout>
-          } />
-          <Route path="/approvals" element={
-            <Layout>
-              <ProtectedRoute><ApprovalsPage /></ProtectedRoute>
             </Layout>
           } />
           <Route path="/models" element={

@@ -1,6 +1,6 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { getPendingApprovals, getCostOverview, getModels, getKeys, getPrompts, getMCPServers } from "../api/client";
+import { getCostOverview, getModels, getKeys, getPrompts, getMCPServers } from "../api/client";
 
 /* ── Tasks Panel ── */
 
@@ -55,46 +55,6 @@ function TasksPanel() {
         {recentIds.length === 0 && (
           <p className="sidebar-empty">暂无最近任务，创建一个新审计开始吧</p>
         )}
-      </div>
-    </div>
-  );
-}
-
-/* ── Approvals Panel ── */
-
-function ApprovalsPanel() {
-  const navigate = useNavigate();
-  const { data, isLoading } = useQuery({
-    queryKey: ["pending-approvals"],
-    queryFn: getPendingApprovals,
-    refetchInterval: 15_000,
-  });
-
-  return (
-    <div className="sidebar-panel">
-      <div className="sidebar-panel__header">
-        <h3 className="sidebar-panel__title">待审批</h3>
-        {data && <span className="badge badge--warning">{data.total}</span>}
-      </div>
-      <div className="sidebar-panel__body">
-        {isLoading && <p className="sidebar-empty">加载中…</p>}
-        {!isLoading && data && data.items.length === 0 && (
-          <p className="sidebar-empty">暂无待审批</p>
-        )}
-        {data?.items.map((item: any) => (
-          <button
-            key={item.task_id}
-            className="sidebar-task-item"
-            onClick={() => navigate(`/tasks/${item.task_id}`)}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10" />
-              <line x1="12" y1="8" x2="12" y2="12" />
-              <line x1="12" y1="16" x2="12.01" y2="16" />
-            </svg>
-            <span className="sidebar-task-item__id">{item.node_name || item.task_id?.slice(0, 12)}</span>
-          </button>
-        ))}
       </div>
     </div>
   );
@@ -333,7 +293,6 @@ export default function Sidebar() {
 
   const panel = () => {
     if (location.pathname === "/") return <TasksPanel />;
-    if (location.pathname.startsWith("/approvals")) return <ApprovalsPanel />;
     if (location.pathname.startsWith("/settings")) return <CostPanel />;
     if (location.pathname.startsWith("/tasks/")) return <TasksPanel />;
     if (location.pathname.startsWith("/models")) return <ModelsPanel />;

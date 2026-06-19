@@ -84,27 +84,6 @@ export function getReport(taskId: string) {
   return request<any>(`/tasks/${taskId}/report`);
 }
 
-// ── Approvals ──
-export function getPendingApprovals() {
-  return request<{ items: any[]; total: number }>("/approvals/pending");
-}
-
-export function getPendingApproval(taskId: string) {
-  return request<{
-    task_id: string;
-    node_name: string;
-    prompt: string;
-    context: { danger_count: number; items: any[] };
-  }>(`/approvals/pending/${taskId}`);
-}
-
-export function respondApproval(taskId: string, decision: string, feedback: string) {
-  return request<any>("/approvals/respond", {
-    method: "POST",
-    body: JSON.stringify({ task_id: taskId, decision, feedback }),
-  });
-}
-
 // ── Admin ──
 export function getCostOverview() {
   return request<any>("/admin/cost/overview");
@@ -596,6 +575,55 @@ export function setGitToken(platform: string, token: string) {
   return request<{ ok: boolean; platform: string; error?: string }>("/pr/token", {
     method: "PUT",
     body: JSON.stringify({ platform, token }),
+  });
+}
+
+// ── File Tree ──
+
+export function getFileTree(dir_path?: string, revision?: string, repo_path?: string) {
+  const qs = new URLSearchParams();
+  if (dir_path) qs.set("dir_path", dir_path);
+  if (revision) qs.set("revision", revision);
+  if (repo_path) qs.set("repo_path", repo_path);
+  return request<{
+    ok: boolean;
+    repo_path: string;
+    revision: string;
+    dir_path: string;
+    entries: Array<{ name: string; path: string; is_dir: boolean }>;
+  }>(`/review/tree?${qs.toString()}`);
+}
+
+// ── Code Search ──
+
+export function searchCode(q: string, repo_path?: string, revision?: string, case_sensitive?: boolean) {
+  const qs = new URLSearchParams();
+  qs.set("q", q);
+  if (repo_path) qs.set("repo_path", repo_path);
+  if (revision) qs.set("revision", revision);
+  if (case_sensitive) qs.set("case_sensitive", "true");
+  return request<{
+    ok: boolean;
+    query: string;
+    revision: string;
+    results: Array<{ file: string; line: number | string; content: string }>;
+    total: number;
+  }>(`/review/search?${qs.toString()}`);
+}
+
+// ── Review Checklists ──
+
+export function getChecklists() {
+  return request<{
+    ok: boolean;
+    checklists: Record<string, { name: string; items: Array<{ id: string; label: string; hint: string }> }>;
+  }>("/review/checklists");
+}
+
+export function saveChecklist(name: string, items: Array<{ id: string; label: string; hint: string }>) {
+  return request<{ ok: boolean; name: string; items: number; error?: string }>("/review/checklists", {
+    method: "PUT",
+    body: JSON.stringify({ name, items }),
   });
 }
 
