@@ -16,6 +16,7 @@ import TracePage from "./pages/Trace";
 import ModelsPage from "./pages/Models";
 import ReviewPage from "./pages/Review";
 import PRPage from "./pages/PR";
+import ApiClientPage from "./pages/ApiClient";
 
 const queryClient = new QueryClient();
 
@@ -114,6 +115,11 @@ export default function App() {
           <Route path="/pr" element={
             <Layout>
               <ProtectedRoute><PRPage /></ProtectedRoute>
+            </Layout>
+          } />
+          <Route path="/api-client" element={
+            <Layout>
+              <ProtectedRoute><ApiClientPage /></ProtectedRoute>
             </Layout>
           } />
           <Route path="/settings" element={

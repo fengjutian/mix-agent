@@ -80,6 +80,9 @@
   flex-direction: column;
   align-items: center;
   gap: 2px;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .activity-bar__item {

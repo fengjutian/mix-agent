@@ -642,6 +642,35 @@ export function saveChecklist(name: string, items: Array<{ id: string; label: st
   });
 }
 
+// ── HTTP Proxy (API Client / Postman-like) ──
+
+export interface ProxyRequestBody {
+  method: string;
+  url: string;
+  headers: Record<string, string>;
+  query_params: Record<string, string>;
+  body: string | null;
+  content_type: string | null;
+  timeout_seconds: number;
+}
+
+export interface ProxyResponseBody {
+  ok: boolean;
+  status: number;
+  status_text: string;
+  headers: Record<string, string>;
+  body: string;
+  timing_ms: number;
+  error: string;
+}
+
+export function sendProxyRequest(req: ProxyRequestBody) {
+  return request<ProxyResponseBody>("/proxy", {
+    method: "POST",
+    body: JSON.stringify(req),
+  });
+}
+
 // ── Global Settings ──
 
 export function getGlobalSettings() {

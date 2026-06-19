@@ -11,6 +11,7 @@ from mix_agent.api.v1_tasks import router as tasks_router
 from mix_agent.api.v1_analyzer import router as analyzer_router
 from mix_agent.api.v1_review import router as review_router
 from mix_agent.api.v1_pr import router as pr_router
+from mix_agent.api.v1_proxy import router as proxy_router
 from mix_agent.config import settings
 from mix_agent.api.auth_middleware import AuthMiddleware
 
@@ -48,6 +49,7 @@ app.include_router(admin_router, prefix="/api/v1/admin", tags=["admin"])
 app.include_router(analyzer_router, prefix="/api/v1/analyzer", tags=["analyzer"])
 app.include_router(review_router, prefix="/api/v1/review", tags=["review"])
 app.include_router(pr_router, prefix="/api/v1", tags=["pr"])
+app.include_router(proxy_router, prefix="/api/v1", tags=["proxy"])
 
 
 @app.get("/health")
