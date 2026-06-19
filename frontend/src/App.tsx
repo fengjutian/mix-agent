@@ -22,7 +22,7 @@ import PRPage from "./pages/PR";
 const queryClient = new QueryClient();
 
 /** 这些页面自带左侧面板（如代码审查的 commit 列表），不需要全局资源管理器侧边栏。 */
-const FULL_WIDTH_ROUTES = ["/review", "/pr"] as const;
+const FULL_WIDTH_ROUTES = ["/review", "/pr", '/'] as const;
 
 function Layout({ children }: { children: React.ReactNode }) {
   const { isUnlocked, hasPassword, lock } = useAuthStore();
@@ -57,7 +57,7 @@ function Layout({ children }: { children: React.ReactNode }) {
       <div className="workspace">
         <ActivityBar sidebarOpen={sidebarOpen} onToggleSidebar={toggleSidebar} onOpenSettings={() => setSettingsOpen(true)} />
 
-        {!hideSidebar && (
+        {/* {!hideSidebar && (
           <>
             <div className={`sidebar-area${sidebarOpen ? "" : " sidebar-area--collapsed"}`} ref={panelRef}>
               <div className="sidebar-area__inner">
@@ -86,7 +86,7 @@ function Layout({ children }: { children: React.ReactNode }) {
               <div className="workspace__resize-handle" onMouseDown={onMouseDown} />
             )}
           </>
-        )}
+        )} */}
 
         <main className="page-content">{children}</main>
       </div>
