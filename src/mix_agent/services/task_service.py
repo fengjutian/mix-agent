@@ -141,7 +141,11 @@ class TaskService:
             ))
 
         # 2. Secret Scanner
-        changed_paths = [f.file_path for f in diff_result.changed_files if f.change_type.value != "deleted"]
+        changed_paths = [
+            os.path.join(repo_path, f.file_path)
+            for f in diff_result.changed_files
+            if f.change_type.value != "deleted"
+        ]
         if changed_paths:
             scanner = SecretScanner()
             scan_result = scanner.scan(changed_paths)
@@ -150,7 +154,7 @@ class TaskService:
                     agent="secret_scanner",
                     finding_type=sf.rule_id,
                     risk_level=sf.severity,
-                    file_path=sf.file_path,
+                    file_path=os.path.relpath(sf.file_path, repo_path),
                     line_number=sf.line_number,
                     code_snippet=sf.line_content.strip(),
                     description=sf.description,
@@ -164,7 +168,6 @@ class TaskService:
             # 对 .py 文件提取 SQL 字符串进行审计（简化：仅审计 .sql 文件）
             if f.file_path.endswith(".sql"):
                 try:
-                    import os
                     full_path = os.path.join(repo_path, f.file_path)
                     with open(full_path, encoding="utf-8") as fh:
                         sql_content = fh.read()
@@ -192,11 +195,12 @@ class TaskService:
             ast_result = ana.parse_files(py_files)
             # Summarize
             for file_key, symbols in ast_result.get("files", {}).items():
+                rel_path = os.path.relpath(file_key, repo_path)
                 findings.append(FindingItem(
                     agent="ast_analyzer",
                     finding_type="code_structure",
                     risk_level="safe",
-                    file_path=file_key,
+                    file_path=rel_path,
                     description=ana.generate_summary(
                         open(file_key, encoding="utf-8").read()
                     ) if os.path.exists(file_key) else "",

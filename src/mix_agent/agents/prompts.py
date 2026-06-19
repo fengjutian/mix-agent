@@ -142,17 +142,17 @@ focus_areas 可选值：sql_audit（SQL审计）、code_review（代码审查）
 - 是否可自动应用
 
 输出 JSON（无 markdown 标记）：
-{
-  "feasibility": {
+{{
+  "feasibility": {{
     "feasible": true/false,
     "confidence": "high|medium|low",
     "assessment": "可行性评估说明",
     "affected_files": ["文件路径列表"],
     "risk_level": "low|medium|high",
     "constraints": ["约束条件"]
-  },
+  }},
   "fixes": [
-    {
+    {{
       "finding_id": "对应的发现项索引",
       "file": "文件路径",
       "line_start": 行号,
@@ -161,10 +161,10 @@ focus_areas 可选值：sql_audit（SQL审计）、code_review（代码审查）
       "fixed_snippet": "修复后的代码片段",
       "diff": "unified diff 格式的差异",
       "can_auto_apply": true/false
-    }
+    }}
   ],
   "summary": "修复方案概述"
-}
+}}
 
 原则：
 - 仅当 can_auto_apply=true 且风险可控时才建议自动应用

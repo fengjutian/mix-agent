@@ -66,9 +66,8 @@ def sample_task_payload() -> dict:
     """返回创建任务的标准请求体。"""
     return {
         "description": "检查用户模块的 SQL 安全性",
-        "context": {
-            "target_branch": "HEAD",
-            "base_branch": "main",
-            "repo_path": ".",
-        },
+        "target_branch": "HEAD",
+        "base_branch": "main",
+        "repo_path": ".",
+        "context": {},
     }

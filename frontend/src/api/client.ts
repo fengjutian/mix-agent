@@ -6,13 +6,28 @@ async function request<T>(path: string, opts?: RequestInit): Promise<T> {
     ...(opts?.headers as Record<string, string> || {}),
   };
 
-  const res = await fetch(`${BASE}${path}`, { ...opts, headers });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30_000);
+  try {
+    const res = await fetch(`${BASE}${path}`, {
+      ...opts,
+      headers,
+      signal: controller.signal,
+    });
 
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`${res.status}: ${err}`);
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`${res.status}: ${err}`);
+    }
+    return res.json();
+  } catch (e: any) {
+    if (e.name === "AbortError") {
+      throw new Error("请求超时（30s），请检查后端服务是否运行");
+    }
+    throw e;
+  } finally {
+    clearTimeout(timeoutId);
   }
-  return res.json();
 }
 
 // ── Tasks ──

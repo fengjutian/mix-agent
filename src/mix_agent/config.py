@@ -5,7 +5,7 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     # ---------- 数据库 ----------
-    DATABASE_URL: str = "postgresql+asyncpg://mixagent:mixagent_dev@localhost:5432/mixagent"
+    DATABASE_URL: str = "postgresql+asyncpg://mixagent@localhost:5432/mixagent"
 
     # ---------- LLM 模型配置 ----------
     # MiniMax (OpenAI 兼容接口)
@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     # ---------- Token 限流 ----------
     TOKEN_BURST_LIMIT: int = 100_000
     TOKEN_REFILL_RATE: int = 10_000
+
+    # ---------- API 鉴权 ----------
+    API_AUTH_TOKEN: str = ""  # 空字符串 = 开发模式免鉴权
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

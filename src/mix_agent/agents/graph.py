@@ -26,7 +26,9 @@ def _route_after_orchestrator(state: AgentState) -> list[str]:
         "sql_audit": "sql_risk_explain",
         "code_review": "code_review",
         "review": "review",
-        # secret_scan / config_audit / dependency_audit 可后续扩展
+        "secret_scan": "summary",       # 无专用 LLM 节点，规则引擎已覆盖
+        "dependency_audit": "summary",  # 无专用节点，记录后跳过
+        "config_audit": "summary",      # 无专用节点，记录后跳过
     }
 
     for agent in agents:

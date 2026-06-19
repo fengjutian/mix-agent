@@ -289,7 +289,7 @@ def _parse_gitlab_mr(item: dict) -> PRInfo:
         number=item.get("iid", 0),
         title=item.get("title", ""),
         description=item.get("description", "") or "",
-        state=item.get("state", "opened") if item.get("state") == "opened" else item.get("state", "open"),
+        state=item.get("state", "open"),
         source_branch=item.get("source_branch", ""),
         target_branch=item.get("target_branch", ""),
         author=author.get("username", ""),

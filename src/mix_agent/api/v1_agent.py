@@ -90,9 +90,11 @@ async def run_agent(req: AgentRunRequest):
         )
 
     # ── 4. 存储结果 ──
+    # final_state 可能是 AgentState (Pydantic) 或 dict，统一转为 dict 访问
+    state_dict = final_state if isinstance(final_state, dict) else final_state.model_dump()
     _agent_results[task_id] = {
         "task_id": task_id,
-        "status": final_state.get("task_status", TaskStatus.COMPLETED),
+        "status": state_dict.get("task_status", TaskStatus.COMPLETED),
         "description": req.description,
         "target_branch": req.target_branch,
         "base_branch": req.base_branch,
@@ -102,19 +104,19 @@ async def run_agent(req: AgentRunRequest):
         "completed_at": datetime.now(timezone.utc).isoformat(),
         "git_error": git_error,
         "result": {
-            "parse_result": final_state.get("parse_result", {}),
-            "orchestrator_result": final_state.get("orchestrator_result", {}),
-            "code_review_result": final_state.get("code_review_result", {}),
-            "sql_audit_result": final_state.get("sql_audit_result", {}),
-            "summary_result": final_state.get("summary_result", {}),
-            "accumulated_tokens": final_state.get("accumulated_tokens", 0),
+            "parse_result": state_dict.get("parse_result", {}),
+            "orchestrator_result": state_dict.get("orchestrator_result", {}),
+            "code_review_result": state_dict.get("code_review_result", {}),
+            "sql_audit_result": state_dict.get("sql_audit_result", {}),
+            "summary_result": state_dict.get("summary_result", {}),
+            "accumulated_tokens": state_dict.get("accumulated_tokens", 0),
         },
         "changed_files": changed_files,
     }
 
     return AgentRunResponse(
         task_id=task_id,
-        status=final_state.get("task_status", TaskStatus.COMPLETED),
+        status=state_dict.get("task_status", TaskStatus.COMPLETED),
         message="Agent audit completed",
     )
 

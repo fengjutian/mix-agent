@@ -105,33 +105,39 @@ class FileEditor:
 
     @staticmethod
     def _parse_diff_snippets(diff_text: str) -> tuple[str | None, str | None]:
-        """从 unified diff 中提取原始代码和修复代码片段。"""
+        """从 unified diff 中提取原始代码和修复代码片段。
+
+        Unified diff 格式:
+          --- a/file
+          +++ b/file
+          @@ -old_start,old_count +new_start,new_count @@
+           unchanged line
+          -removed line
+          +added line
+           unchanged line
+
+        通过收集 `-` 行构建原始片段，`+` 行构建修复片段。
+        """
         lines = diff_text.split("\n")
         original_lines: list[str] = []
         fixed_lines: list[str] = []
+        in_hunk = False
 
-        in_original = False
-        in_fixed = False
         for line in lines:
-            if line.startswith("--- "):
-                in_original = True
-                in_fixed = False
+            if line.startswith("@@") and "@@" in line[2:]:
+                in_hunk = True
                 continue
-            if line.startswith("+++ "):
-                in_original = False
-                in_fixed = True
+            if not in_hunk:
                 continue
-            if line.startswith("@@"):
-                in_original = False
-                in_fixed = False
-                continue
-            if line.startswith("-") and not line.startswith("---"):
+            if line.startswith("-"):
                 original_lines.append(line[1:])
-            elif line.startswith("+") and not line.startswith("+++"):
+            elif line.startswith("+"):
                 fixed_lines.append(line[1:])
-            elif line.startswith(" "):
-                original_lines.append(line[1:])
-                fixed_lines.append(line[1:])
+            else:
+                # context line (space or empty): shared by both
+                ctx = line[1:] if line.startswith(" ") else line
+                original_lines.append(ctx)
+                fixed_lines.append(ctx)
 
         orig = "\n".join(original_lines).strip() if original_lines else None
         fixd = "\n".join(fixed_lines).strip() if fixed_lines else None

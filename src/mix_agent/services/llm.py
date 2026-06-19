@@ -128,10 +128,13 @@ class LLMClient:
 
     def __init__(self):
         self._client: httpx.AsyncClient | None = None
+        self._client_lock = asyncio.Lock()
 
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None:
-            self._client = httpx.AsyncClient(timeout=self.REQUEST_TIMEOUT)
+            async with self._client_lock:
+                if self._client is None:  # 双重检查
+                    self._client = httpx.AsyncClient(timeout=self.REQUEST_TIMEOUT)
         return self._client
 
     async def close(self) -> None:

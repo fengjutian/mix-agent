@@ -21,9 +21,17 @@ async def review_node(state: AgentState) -> dict:
     2. 对变更文件进行 blame 分析
     3. 构建结构化上下文发送给 LLM 进行语义分析
     """
-    repo_path = state.orchestrator_result.get("repo_path", ".")
-    target = state.orchestrator_result.get("target_branch", "HEAD")
-    base = state.orchestrator_result.get("base_branch", "main")
+    repo_path = state.changed_files[0].get("repo_path", ".") if state.changed_files else "."
+    target = state.orchestrator_result.get("target_branch") or "HEAD"
+    base = state.orchestrator_result.get("base_branch") or "main"
+    
+    # Fallback: try to infer from task_description or changed_files context
+    if repo_path == ".":
+        repo_path = (state.parse_result or {}).get("repo_path", ".")
+    if not state.orchestrator_result.get("target_branch"):
+        # orchestrator_result doesn't carry target/base — read from parse_result or use defaults
+        target = (state.parse_result or {}).get("target_branch", "HEAD")
+        base = (state.parse_result or {}).get("base_branch", "main")
 
     git = GitTool(repo_path)
 

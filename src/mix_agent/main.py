@@ -12,6 +12,7 @@ from mix_agent.api.v1_analyzer import router as analyzer_router
 from mix_agent.api.v1_review import router as review_router
 from mix_agent.api.v1_pr import router as pr_router
 from mix_agent.config import settings
+from mix_agent.api.auth_middleware import AuthMiddleware
 
 
 @asynccontextmanager
@@ -27,6 +28,9 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+# 全局鉴权中间件
+app.add_middleware(AuthMiddleware)
 
 # 全局跨域中间件
 app.add_middleware(

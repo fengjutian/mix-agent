@@ -77,6 +77,8 @@ def list_prs(
             "prs": [p.to_dict() for p in prs],
             "total": len(prs),
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
     finally:
@@ -100,6 +102,8 @@ def get_pr_detail(
             "ok": True,
             "pr": detail.to_dict(),
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
     finally:

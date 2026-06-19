@@ -5,8 +5,6 @@ from typing import Any
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
     PointStruct,
-    Filter,
-    FilterSelector,
     VectorParams,
     Distance,
 )
@@ -52,7 +50,5 @@ class VectorDBService:
         """按 ID 删除向量点。"""
         self._client.delete(
             collection_name=self._collection,
-            points_selector=FilterSelector(
-                filter=Filter(must=[...])  # TODO: 实现精确 ID 过滤
-            ),
+            points_selector=point_ids,
         )

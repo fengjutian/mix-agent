@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from qdrant_client import QdrantClient
@@ -28,7 +29,7 @@ class RAGService:
 
     # ── 存储 ──
 
-    def ingest(self, texts: list[str], metadata_list: list[dict] | None = None) -> None:
+    async def ingest(self, texts: list[str], metadata_list: list[dict] | None = None) -> None:
         """将文本批次向量化并存入 Qdrant。
 
         Args:
@@ -38,7 +39,7 @@ class RAGService:
         if metadata_list is None:
             metadata_list = [{}] * len(texts)
 
-        vectors = self._embed(texts)
+        vectors = await self._embed(texts)
         points: list[PointStruct] = []
 
         for i, (text, meta) in enumerate(zip(texts, metadata_list)):
@@ -53,9 +54,9 @@ class RAGService:
 
     # ── 检索 ──
 
-    def search(self, query: str, top_k: int = 5) -> list[dict[str, Any]]:
+    async def search(self, query: str, top_k: int = 5) -> list[dict[str, Any]]:
         """语义检索最相似的 top_k 条记录。"""
-        query_vector = self._embed([query])[0]
+        query_vector = (await self._embed([query]))[0]
         hits = self._qdrant.search(
             collection_name=self.COLLECTION_NAME,
             query_vector=query_vector,
@@ -66,11 +67,11 @@ class RAGService:
             for hit in hits
         ]
 
-    def search_with_context(
+    async def search_with_context(
         self, query: str, max_tokens: int = 2000, top_k: int = 5
     ) -> str:
         """检索并拼接为上下文文本，可直接注入 Prompt。"""
-        results = self.search(query, top_k=top_k)
+        results = await self.search(query, top_k=top_k)
         if not results:
             return ""
 
@@ -90,21 +91,21 @@ class RAGService:
 
     # ── 场景化检索 ──
 
-    def find_similar_audits(self, description: str) -> str:
+    async def find_similar_audits(self, description: str) -> str:
         """检索相似的历史审计结果。"""
-        return self.search_with_context(
+        return await self.search_with_context(
             f"审计任务: {description}", max_tokens=1500, top_k=3
         )
 
-    def find_relevant_rules(self, code_context: str) -> str:
+    async def find_relevant_rules(self, code_context: str) -> str:
         """检索相关的安全规则/最佳实践。"""
-        return self.search_with_context(
+        return await self.search_with_context(
             f"安全规则: {code_context}", max_tokens=1000, top_k=3
         )
 
-    def find_code_patterns(self, symbol_summary: str) -> str:
+    async def find_code_patterns(self, symbol_summary: str) -> str:
         """检索代码模式参考。"""
-        return self.search_with_context(
+        return await self.search_with_context(
             f"代码模式: {symbol_summary}", max_tokens=1000, top_k=3
         )
 
@@ -122,7 +123,7 @@ class RAGService:
                 ),
             )
 
-    def _embed(self, texts: list[str]) -> list[list[float]]:
+    async def _embed(self, texts: list[str]) -> list[list[float]]:
         """调用 LLM embedding API 生成向量。
 
         优先使用 MiniMax embedding，否则降级为规则化 Hash 向量（测试用）。
@@ -130,33 +131,39 @@ class RAGService:
         # 尝试调用 MiniMax embedding API
         if settings.MINIMAX_API_KEY:
             try:
-                return self._embed_via_api(texts)
+                return await self._embed_via_api(texts)
             except Exception:
                 pass
 
         # 降级：确定性 Hash 向量（仅用于测试/开发）
         return [self._hash_embed(t) for t in texts]
 
-    def _embed_via_api(self, texts: list[str]) -> list[list[float]]:
-        """通过 MiniMax embedding API 获取向量。"""
+    async def _embed_via_api(self, texts: list[str]) -> list[list[float]]:
+        """通过 MiniMax embedding API 批量获取向量。"""
         import httpx
-        import time
 
         url = f"{settings.MINIMAX_BASE_URL}/embeddings"
         headers = {"Authorization": f"Bearer {settings.MINIMAX_API_KEY}"}
-        vectors: list[list[float]] = []
 
-        for text in texts:
-            resp = httpx.post(
-                url,
-                json={"model": "embo-01", "input": text},
-                headers=headers,
-                timeout=30,
-            )
+        async with httpx.AsyncClient(timeout=60) as client:
+            tasks = []
+            for text in texts:
+                tasks.append(
+                    client.post(
+                        url,
+                        json={"model": "embo-01", "input": text},
+                        headers=headers,
+                    )
+                )
+            responses = await asyncio.gather(*tasks, return_exceptions=True)
+
+        vectors: list[list[float]] = []
+        for resp in responses:
+            if isinstance(resp, Exception):
+                raise RuntimeError(f"Embedding API call failed: {resp}")
             resp.raise_for_status()
             data = resp.json()
             vectors.append(data["data"][0]["embedding"])
-
         return vectors
 
     @staticmethod

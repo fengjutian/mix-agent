@@ -34,6 +34,7 @@ class TaskStatus(str, Enum):
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
+    AWAITING_APPROVAL = "awaiting_approval"
 
 
 class TaskRequest(BaseModel):
@@ -150,6 +151,9 @@ class AgentState(BaseModel):
     changed_files: list[dict[str, Any]] = Field(default_factory=list)
     ast_symbols: dict[str, Any] = Field(default_factory=dict)
 
+    # HiL 审批
+    pending_approval: ApprovalRequest | None = None
+
 
 # ──────────── Review Module ────────────
 
@@ -180,6 +184,32 @@ class ReviewFileView(BaseModel):
     revision: str = "HEAD"
     line_start: int | None = None
     line_end: int | None = None
+
+
+# ──────────── 人工审批 (HiL) ────────────
+
+
+class ApprovalDecision(str, Enum):
+    APPROVE = "approve"
+    REJECT = "reject"
+    MODIFY = "modify"
+
+
+class ApprovalRequest(BaseModel):
+    """待审批请求 — Agent 在发现高危操作时生成。"""
+
+    task_id: str = ""
+    node_name: str
+    prompt: str
+    context: dict[str, Any] = Field(default_factory=dict)
+
+
+class ApprovalAction(BaseModel):
+    """审批决策动作 — 由管理员提交。"""
+
+    task_id: str
+    decision: ApprovalDecision
+    feedback: str = ""
 
 
 # ──────────── 全局应用设置 ────────────

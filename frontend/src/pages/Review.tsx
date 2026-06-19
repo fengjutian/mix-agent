@@ -106,12 +106,15 @@ export default function ReviewPage() {
       setCurrentBranch(data.current);
       setCommits([]);
       if (data.current) {
+        setCommitsLoading(true);
         const commitData = await listCommits({ branch: data.current, max_count: 50, repo_path: rp });
         setCommits(commitData.commits);
       }
     } catch (e: any) {
       setBranchError(e?.message || String(e));
       console.error("[Review] loadBranches FAIL", e);
+    } finally {
+      setCommitsLoading(false);
     }
   }, []);
 

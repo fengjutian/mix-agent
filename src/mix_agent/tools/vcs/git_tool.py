@@ -285,7 +285,7 @@ class GitTool:
         self._ensure_repo()
 
         args = ["log", "--format=%H|%h|%an|%ae|%aI|%D|%s",
-                f"-{max_count}", f"--skip={skip}"]
+                f"-{max(max_count, 1)}", f"--skip={skip}"]
         if file_path:
             args.append("--")
             args.append(file_path)
