@@ -15,6 +15,10 @@ import {
   getChecklists,
 } from "../api/client";
 import DirectoryPicker from "../components/DirectoryPicker";
+import { Input } from "../components/ui/input";
+import { Checkbox, CheckboxIndicator } from "../components/ui/checkbox";
+import { Badge } from "../components/ui/badge";
+import { Select, SelectTrigger, SelectValue, SelectPopup, SelectItem } from "../components/ui/select";
 
 type LeftTab = "tree" | "commits";
 type RightTab = "diff" | "file";
@@ -319,12 +323,18 @@ export default function ReviewPage() {
             <label className="form-label" style={{ fontSize: "0.7rem", marginBottom: 1 }}>
               分支 {statusDirty && <span style={{ color: "var(--danger)" }}>●</span>}
             </label>
-            <select className="form-input" style={{ padding: "3px 6px", fontSize: "0.8rem" }} value={currentBranch}
-              onChange={(e) => handleCheckout(e.target.value)}>
-              {branches.map((b) => (
-                <option key={b.name} value={b.name}>{b.name}{b.is_current ? " (current)" : ""}{b.is_remote ? " [remote]" : ""}</option>
-              ))}
-            </select>
+            <Select value={currentBranch} onValueChange={(value: string) => handleCheckout(value)}>
+              <SelectTrigger className="text-xs h-7 w-[160px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectPopup>
+                {branches.map((b) => (
+                  <SelectItem key={b.name} value={b.name}>
+                    {b.name}{b.is_current ? " (current)" : ""}{b.is_remote ? " [remote]" : ""}
+                  </SelectItem>
+                ))}
+              </SelectPopup>
+            </Select>
           </div>
           {branchError && <span style={{ color: "var(--danger)", fontSize: "0.7rem" }}>⚠ {branchError}</span>}
           <div style={{ flex: 1 }} />
@@ -341,7 +351,7 @@ export default function ReviewPage() {
         {/* Row 2: Search + side-by-side toggle + progress */}
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 4, flex: "0 0 260px" }}>
-            <input className="form-input" style={{ padding: "3px 8px", fontSize: "0.78rem", flex: 1 }}
+            <Input className="flex-1 text-xs h-7"
               placeholder="搜索代码... (Enter)"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -352,7 +362,9 @@ export default function ReviewPage() {
             </button>
           </div>
           <label style={{ fontSize: "0.75rem", display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}>
-            <input type="checkbox" checked={sideBySide} onChange={(e) => setSideBySide(e.target.checked)} />
+            <Checkbox checked={sideBySide} onCheckedChange={(checked) => setSideBySide(!!checked)}>
+              <CheckboxIndicator />
+            </Checkbox>
             并排 Diff
           </label>
           {progressPct > 0 && (
@@ -387,10 +399,10 @@ export default function ReviewPage() {
       {/* ── Commit Comparison ── */}
       <div className="card" style={{ marginBottom: 8, padding: "6px 12px", display: "flex", alignItems: "center", gap: 8 }}>
         <span style={{ fontSize: "0.72rem", color: "var(--text-muted)", flexShrink: 0 }}>提交对比</span>
-        <input className="form-input" style={{ padding: "2px 6px", fontSize: "0.75rem", width: 100, fontFamily: "monospace" }}
+        <Input className="w-[100px] text-xs h-7 font-mono"
           placeholder="base" value={compareBase} onChange={(e) => setCompareBase(e.target.value)} />
         <span style={{ fontSize: "0.75rem" }}>..</span>
-        <input className="form-input" style={{ padding: "2px 6px", fontSize: "0.75rem", width: 100, fontFamily: "monospace" }}
+        <Input className="w-[100px] text-xs h-7 font-mono"
           placeholder="target" value={compareTarget} onChange={(e) => setCompareTarget(e.target.value)} />
         <button className="btn btn--primary btn--sm" onClick={handleCompareCommits}>对比</button>
       </div>
@@ -425,8 +437,8 @@ export default function ReviewPage() {
                   style={{ padding: "8px 10px", cursor: "pointer", borderBottom: "1px solid var(--border)",
                     background: selectedCommit?.sha === commit.sha ? "var(--bg-active)" : "transparent" }}>
                   <div style={{ display: "flex", gap: 6, marginBottom: 2 }}>
-                    <span className="badge badge--info" style={{ fontSize: "0.7rem", fontFamily: "monospace" }}>{commit.short_sha}</span>
-                    {commit.refs.length > 0 && <span className="badge badge--warning" style={{ fontSize: "0.6rem" }}>{commit.refs.join(", ")}</span>}
+                    <Badge variant="info" className="font-mono text-[0.7rem]">{commit.short_sha}</Badge>
+                    {commit.refs.length > 0 && <Badge variant="warning" className="text-[0.6rem]">{commit.refs.join(", ")}</Badge>}
                   </div>
                   <div style={{ fontSize: "0.8rem", fontWeight: 500 }}>{commit.message}</div>
                   <div style={{ fontSize: "0.68rem", color: "var(--text-muted)", display: "flex", justifyContent: "space-between" }}>
@@ -510,11 +522,13 @@ export default function ReviewPage() {
                       <div style={{ fontWeight: 600, fontSize: "0.78rem", marginBottom: 4 }}>变更文件</div>
                       {commitDetail.changed_files.map((cf, i) => (
                         <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, padding: "2px 0", fontSize: "0.76rem" }}>
-                          <input type="checkbox" checked={reviewedFiles.has(cf.file_path)}
-                            onChange={() => toggleReviewed(cf.file_path)}
-                            style={{ cursor: "pointer", margin: 0 }} title="标记已审查" />
-                          <span className={`badge ${cf.change_type === "added" ? "badge--success" : cf.change_type === "deleted" ? "badge--danger" : cf.change_type === "renamed" ? "badge--warning" : "badge--info"}`}
-                            style={{ fontSize: "0.6rem", minWidth: 40, textAlign: "center" }}>{cf.change_type}</span>
+                          <Checkbox checked={reviewedFiles.has(cf.file_path)}
+                            onCheckedChange={() => toggleReviewed(cf.file_path)}
+                            title="标记已审查">
+                            <CheckboxIndicator />
+                          </Checkbox>
+                          <Badge variant={cf.change_type === "added" ? "success" : cf.change_type === "deleted" ? "destructive" : cf.change_type === "renamed" ? "warning" : "info"}
+                            className="text-[0.6rem] min-w-[40px] justify-center">{cf.change_type}</Badge>
                           <span style={{ flex: 1, cursor: "pointer", color: "var(--text-link)", fontFamily: "monospace", fontSize: "0.76rem" }}
                             onClick={() => handleOpenFile(cf.file_path)} title="查看文件">{cf.file_path}</span>
                           <span style={{ cursor: "pointer", fontSize: "0.65rem", color: "var(--text-muted)" }}
@@ -586,11 +600,12 @@ export default function ReviewPage() {
                   {checklist.map(item => (
                     <label key={item.id} style={{ display: "flex", alignItems: "flex-start", gap: 6, marginBottom: 6, cursor: "pointer", fontSize: "0.72rem" }}
                       title={item.hint}>
-                      <input type="checkbox" checked={checkedItems.has(item.id)}
-                        onChange={() => {
+                      <Checkbox checked={checkedItems.has(item.id)}
+                        onCheckedChange={() => {
                           setCheckedItems(prev => { const n = new Set(prev); n.has(item.id) ? n.delete(item.id) : n.add(item.id); return n; });
-                        }}
-                        style={{ marginTop: 1, flexShrink: 0 }} />
+                        }}>
+                        <CheckboxIndicator />
+                      </Checkbox>
                       <span>{item.label}</span>
                     </label>
                   ))}
@@ -606,11 +621,11 @@ export default function ReviewPage() {
           {rightTab === "file" && (
             <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
               <div style={{ padding: "6px 12px", borderBottom: "1px solid var(--border)", display: "flex", gap: 8, alignItems: "center" }}>
-                <input className="form-input" style={{ flex: 1, padding: "4px 8px", fontSize: "0.78rem", fontFamily: "monospace" }}
+                <Input className="flex-1 text-xs h-7 font-mono"
                   placeholder="文件路径" value={filePath}
                   onChange={(e) => setFilePath(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleOpenFile(filePath)} />
-                <input className="form-input" style={{ width: 100, padding: "4px 6px", fontSize: "0.78rem" }}
+                <Input className="w-[100px] text-xs h-7"
                   placeholder="revision" value={fileRevision} onChange={(e) => setFileRevision(e.target.value)} />
                 <button className="btn btn--primary btn--sm" disabled={!filePath || fileLoading}
                   onClick={() => handleOpenFile(filePath)}>{fileLoading ? "..." : "打开"}</button>
