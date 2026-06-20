@@ -13,6 +13,7 @@ import {
   getFileTree,
   searchCode,
   getChecklists,
+  openInVSCode,
 } from "../api/client";
 import DirectoryPicker from "../components/DirectoryPicker";
 import { Input } from "../components/ui/input";
@@ -260,6 +261,19 @@ export default function ReviewPage() {
       setFileContent(fileData.content); setBlameLines(blameData.lines);
     } catch (e: any) { setFileContent(`// Error: ${e.message}`); }
     finally { setFileLoading(false); }
+  };
+
+  const handleOpenInVSCode = async (fpath: string) => {
+    if (!fpath) return;
+    try {
+      await openInVSCode(fpath, repoPath);
+    } catch (e: any) {
+      console.error("Failed to open in VS Code:", e);
+      alert(
+        `无法在 VS Code 中打开文件: ${e.message}\n\n` +
+        "请确保已安装 VS Code 并将其加入系统 PATH（code 命令可用）。"
+      );
+    }
   };
 
   const handleDiffCurrent = async () => {
@@ -624,11 +638,11 @@ export default function ReviewPage() {
                 <Input className="flex-1 text-xs h-7 font-mono"
                   placeholder="文件路径" value={filePath}
                   onChange={(e) => setFilePath(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleOpenFile(filePath)} />
+                  onKeyDown={(e) => e.key === "Enter" && handleOpenInVSCode(filePath)} />
                 <Input className="w-[100px] text-xs h-7"
                   placeholder="revision" value={fileRevision} onChange={(e) => setFileRevision(e.target.value)} />
-                <button className="btn btn--primary btn--sm" disabled={!filePath || fileLoading}
-                  onClick={() => handleOpenFile(filePath)}>{fileLoading ? "..." : "打开"}</button>
+                <button className="btn btn--primary btn--sm" disabled={!filePath}
+                  onClick={() => handleOpenInVSCode(filePath)}>在 VS Code 中打开</button>
               </div>
               {fileContent ? (
                 <div style={{ flex: 1, display: "flex", minHeight: 0 }}>

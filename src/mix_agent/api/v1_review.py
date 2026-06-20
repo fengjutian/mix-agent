@@ -504,8 +504,75 @@ def search_code(
 
 
 # ═══════════════════════════════════════════════════════════
-# Review Checklist
+# Open in VS Code
 # ═══════════════════════════════════════════════════════════
+
+
+@router.post("/open-in-vscode")
+def open_in_vscode(
+    file_path: str = Query(..., description="文件路径（相对于仓库）"),
+    repo_path: str = Query(".", description="仓库路径"),
+) -> dict:
+    """在 VS Code 中打开指定文件。"""
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    try:
+        abs_path = Path(repo_path).resolve() / file_path
+        if not abs_path.exists():
+            raise ValueError(f"File does not exist: {abs_path}")
+
+        # 尝试多种 known VS Code CLI 名称
+        code_cmds = ["code", "code.cmd", "code-insiders"]
+        launched = False
+        errors: list[str] = []
+
+        for cmd in code_cmds:
+            try:
+                if sys.platform == "win32":
+                    subprocess.Popen(
+                        [cmd, "--reuse-window", str(abs_path)],
+                        shell=True,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
+                else:
+                    subprocess.Popen(
+                        [cmd, "--reuse-window", str(abs_path)],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
+                launched = True
+                break
+            except FileNotFoundError:
+                errors.append(f"{cmd} not found")
+                continue
+
+        if not launched:
+            # Fallback: try opening via shell (for Windows where code.cmd might be in PATH)
+            try:
+                subprocess.Popen(
+                    f'code --reuse-window "{abs_path}"',
+                    shell=True,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+                launched = True
+            except Exception:
+                errors.append("shell fallback failed")
+
+        if not launched:
+            raise RuntimeError(
+                "无法打开 VS Code，请确保已安装 VS Code 并将其加入系统 PATH（code 命令可用）。"
+                f" 尝试的命令: {', '.join(code_cmds)}"
+            )
+
+        return {"ok": True, "file_path": file_path, "abs_path": str(abs_path)}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 import json as _json
 import threading as _threading

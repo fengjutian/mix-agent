@@ -626,6 +626,18 @@ export function searchCode(q: string, repo_path?: string, revision?: string, cas
   }>(`/review/search?${qs.toString()}`);
 }
 
+// ── Open in VS Code ──
+
+export function openInVSCode(file_path: string, repo_path?: string) {
+  const qs = new URLSearchParams();
+  qs.set("file_path", file_path);
+  if (repo_path) qs.set("repo_path", repo_path);
+  return request<{ ok: boolean; file_path: string; abs_path: string }>(
+    `/review/open-in-vscode?${qs.toString()}`,
+    { method: "POST" }
+  );
+}
+
 // ── Review Checklists ──
 
 export function getChecklists() {
