@@ -233,7 +233,6 @@ function TabBar({ tabs, activeId, onSelect, onClose, onAdd }: {
           <span onClick={() => onSelect(tab.id)}
             className="max-w-[140px] overflow-hidden text-ellipsis"
             onDoubleClick={() => {
-              // eslint-disable-next-line no-alert
               const name = prompt("重命名请求标签", tab.name);
               if (name) tab.name = name;
             }}
@@ -302,6 +301,11 @@ export default function ApiClientPage() {
   // ── Collections ──
   const [collections, setCollections] = useState<Collection[]>(() => lsGet<Collection[]>("api-collections", []));
   useEffect(() => { lsSet("api-collections", collections); }, [collections]);
+
+  // ── Save dialog ──
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [saveReqName, setSaveReqName] = useState("");
+  const [saveCollName, setSaveCollName] = useState("");
 
   // ── Environments ──
   const [environments, setEnvironments] = useState<Environment[]>(() => lsGet<Environment[]>("api-envs", []));
@@ -398,22 +402,26 @@ export default function ApiClientPage() {
 
   // ── Collection operations ──
   const saveToCollection = useCallback(() => {
-    // eslint-disable-next-line no-alert
-    const name = prompt("保存请求为", activeTab?.name || "请求");
-    if (!name) return;
-    // eslint-disable-next-line no-alert
-    const collName = prompt("集合名称 (留空选择已有)", "我的集合");
-    if (collName === null) return;
+    setSaveReqName(activeTab?.name || "请求");
+    setSaveCollName("我的集合");
+    setSaveDialogOpen(true);
+  }, [activeTab]);
+
+  const handleSaveSubmit = useCallback(() => {
+    const name = saveReqName.trim();
+    const collName = saveCollName.trim();
+    if (!name || !collName) return;
     setCollections(prev => {
       let coll = prev.find(c => c.name === collName);
-      if (!coll) { coll = { id: uid(), name: collName || "我的集合", requests: [] }; prev = [...prev, coll]; }
+      if (!coll) { coll = { id: uid(), name: collName, requests: [] }; prev = [...prev, coll]; }
       const existingIdx = coll.requests.findIndex(r => r.name === name);
       const reqCopy = JSON.parse(JSON.stringify(activeTab?.request ?? defaultRequest()));
       if (existingIdx >= 0) coll.requests[existingIdx] = { name, request: reqCopy };
       else coll.requests.push({ name, request: reqCopy });
       return prev.map(c => c.id === coll!.id ? { ...coll! } : c);
     });
-  }, [activeTab]);
+    setSaveDialogOpen(false);
+  }, [saveReqName, saveCollName, activeTab]);
 
   const loadFromCollection = useCallback((reqState: RequestState, name: string) => {
     const tab = newTab(name); tab.request = JSON.parse(JSON.stringify(reqState));
@@ -577,6 +585,43 @@ export default function ApiClientPage() {
                     <Button variant="ghost" size="xs" onClick={saveToCollection} className="self-start text-xs">
                       💾 保存当前请求
                     </Button>
+
+                    <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
+                      <DialogContent className="sm:max-w-sm" showCloseButton={false}>
+                        <DialogHeader>
+                          <DialogTitle>💾 保存当前请求</DialogTitle>
+                        </DialogHeader>
+                        <div className="flex flex-col gap-3">
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-xs font-medium text-foreground">请求名称</label>
+                            <Input value={saveReqName} onChange={(e) => setSaveReqName(e.target.value)}
+                              placeholder="请求名称" autoFocus
+                              onKeyDown={(e) => { if (e.key === "Enter") document.getElementById("save-coll-name")?.focus(); }}
+                            />
+                          </div>
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-xs font-medium text-foreground">集合名称</label>
+                            <Input id="save-coll-name" value={saveCollName} onChange={(e) => setSaveCollName(e.target.value)}
+                              placeholder="集合名称"
+                              onKeyDown={(e) => { if (e.key === "Enter") handleSaveSubmit(); }}
+                            />
+                            {collections.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {collections.map(c => (
+                                  <button key={c.id} type="button" onClick={() => setSaveCollName(c.name)}
+                                    className="text-[0.65rem] px-1.5 py-0.5 rounded-full border border-border text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+                                  >{c.name}</button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <DialogClose><Button variant="outline" size="sm">取消</Button></DialogClose>
+                          <Button size="sm" onClick={handleSaveSubmit}>💾 保存</Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
                   </div>
                 </TabsPanel>
 
@@ -605,7 +650,6 @@ export default function ApiClientPage() {
                       </div>
                     ))}
                     <Button variant="ghost" size="xs" onClick={() => {
-                      // eslint-disable-next-line no-alert
                       const name = prompt("环境名称");
                       if (!name) return;
                       const env: Environment = { id: uid(), name, variables: {} };
