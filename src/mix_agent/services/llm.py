@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json as _json
 import random
 import time
 from dataclasses import dataclass, field
@@ -226,6 +227,77 @@ class LLMClient:
             {"role": "user", "content": user_message},
         ]
         return await self.chat(provider, messages, **kwargs)
+
+    async def chat_stream(
+        self,
+        provider: str,
+        messages: list[dict[str, str]],
+        *,
+        temperature: float = 0.3,
+        max_tokens: int = 4096,
+        override_model: str | None = None,
+    ):
+        """流式聊天完成，逐 token yield SSE 事件字典。
+
+        Yields:
+            {"type": "token", "content": "..."}  — 增量文本
+            {"type": "done", "model": "...", "usage": {...}}  — 完成
+            {"type": "error", "message": "..."}  — 错误
+
+        Note:
+            流式场景不做重试，调用方自行处理断连。
+        """
+        spec = MODEL_REGISTRY.get(provider)
+        if spec is None:
+            known = list(MODEL_REGISTRY.keys())
+            yield {"type": "error", "message": f"Unknown provider '{provider}'. Known: {known}"}
+            return
+
+        model = override_model or spec.model
+        url = f"{spec.base_url}/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {spec.api_key}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "stream": True,
+        }
+
+        try:
+            client = await self._get_client()
+            async with client.stream("POST", url, json=payload, headers=headers) as resp:
+                resp.raise_for_status()
+                async for line in resp.aiter_lines():
+                    if not line.startswith("data: "):
+                        continue
+                    data_str = line[6:]
+                    if data_str == "[DONE]":
+                        break
+                    try:
+                        data = _json.loads(data_str)
+                    except _json.JSONDecodeError:
+                        continue
+                    choice = (data.get("choices") or [{}])[0]
+                    delta = choice.get("delta", {})
+                    if "content" in delta and delta["content"]:
+                        yield {"type": "token", "content": delta["content"]}
+                    if choice.get("finish_reason"):
+                        yield {
+                            "type": "done",
+                            "model": data.get("model", model),
+                            "usage": data.get("usage", {}),
+                        }
+                        return
+        except httpx.HTTPStatusError as e:
+            yield {"type": "error", "message": f"LLM HTTP {e.response.status_code}: {e.response.text[:300]}"}
+        except httpx.TimeoutException:
+            yield {"type": "error", "message": "LLM 请求超时，请稍后重试或减少审查的提交数量"}
+        except httpx.RequestError as e:
+            yield {"type": "error", "message": f"LLM 请求失败: {e}"}
 
     def list_providers(self) -> list[str]:
         return list(MODEL_REGISTRY.keys())

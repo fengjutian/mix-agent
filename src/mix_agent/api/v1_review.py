@@ -7,9 +7,10 @@ import time
 import uuid
 
 from fastapi import APIRouter, HTTPException, Query, Body
+from fastapi.responses import StreamingResponse
 
 from mix_agent.tools.vcs.git_tool import GitTool, ChangedFile, CommitDetail
-from mix_agent.services.llm import MODEL_REGISTRY
+from mix_agent.services.llm import MODEL_REGISTRY, llm_client
 
 router = APIRouter()
 
@@ -591,11 +592,60 @@ _checklist_lock = _threading.Lock()
 # AI Multi-Commit Review
 # ═══════════════════════════════════════════════════════════
 
-# ── In-memory store for async review jobs ──
+# ── File-backed store for async review jobs ──
+_REVIEW_JOBS_FILE = _Path(__file__).resolve().parent.parent.parent.parent / "config" / "review_jobs.json"
 _review_jobs: dict[str, dict] = {}
 _review_jobs_lock = asyncio.Lock()
 
 _REVIEW_JOB_TTL = 600  # auto-clean after 10 minutes
+
+
+def _load_review_jobs() -> None:
+    """从磁盘恢复 review_jobs，自动清理过期任务。"""
+    global _review_jobs
+    try:
+        if _REVIEW_JOBS_FILE.exists():
+            data = _json.loads(_REVIEW_JOBS_FILE.read_text(encoding="utf-8"))
+            now = time.time()
+            cleaned = 0
+            for job_id, job in data.items():
+                if isinstance(job, dict) and job.get("status") in ("completed", "failed"):
+                    age = now - job.get("created_at", 0)
+                    if age > _REVIEW_JOB_TTL:
+                        cleaned += 1
+                        continue
+                _review_jobs[job_id] = job
+            if cleaned:
+                _save_review_jobs()
+    except (_json.JSONDecodeError, OSError):
+        _review_jobs = {}
+
+
+def _save_review_jobs() -> None:
+    """将 review_jobs 写入磁盘。"""
+    try:
+        _REVIEW_JOBS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _REVIEW_JOBS_FILE.write_text(_json.dumps(_review_jobs, indent=2, ensure_ascii=False), encoding="utf-8")
+    except OSError:
+        pass  # 写入失败不阻塞业务
+
+
+def _clean_expired_jobs() -> int:
+    """清理过期任务，返回清理数量。"""
+    now = time.time()
+    expired = [
+        jid for jid, job in _review_jobs.items()
+        if job.get("status") in ("completed", "failed") and (now - job.get("created_at", 0)) > _REVIEW_JOB_TTL
+    ]
+    for jid in expired:
+        del _review_jobs[jid]
+    if expired:
+        _save_review_jobs()
+    return len(expired)
+
+
+# 启动时恢复
+_load_review_jobs()
 
 
 async def _run_review_background(job_id: str, commit_shas: list[str], repo_path: str):
@@ -634,7 +684,8 @@ async def _run_review_background(job_id: str, commit_shas: list[str], repo_path:
 
         if not combined_diff_parts:
             async with _review_jobs_lock:
-                _review_jobs[job_id] = {"status": "failed", "error": "No diff content found for the selected commits"}
+                _review_jobs[job_id] = {"status": "failed", "error": "No diff content found for the selected commits", "created_at": time.time()}
+                _save_review_jobs()
             return
 
         combined_diff = "\n\n".join(combined_diff_parts)
@@ -649,6 +700,9 @@ async def _run_review_background(job_id: str, commit_shas: list[str], repo_path:
 - 修改文件数: {len(all_changed_files)}
 - 新增行数: {total_additions}
 - 删除行数: {total_deletions}
+
+## 修改文件列表
+{chr(10).join(f"- `{cf['file_path']}` (+{cf['additions']}/-{cf['deletions']}) [{cf['change_type']}]" for cf in changed_files_list)}
 
 ## 变更详情 (Diff)
 ```
@@ -666,7 +720,9 @@ async def _run_review_background(job_id: str, commit_shas: list[str], repo_path:
                     "changed_files": changed_files_list,
                     "total_additions": total_additions,
                     "total_deletions": total_deletions,
+                    "created_at": time.time(),
                 }
+                _save_review_jobs()
             return
 
         provider = providers[0]
@@ -695,42 +751,83 @@ async def _run_review_background(job_id: str, commit_shas: list[str], repo_path:
                     "completion": resp.completion_tokens,
                     "total": resp.prompt_tokens + resp.completion_tokens,
                 },
+                "created_at": time.time(),
             }
+            _save_review_jobs()
     except Exception as e:
         async with _review_jobs_lock:
-            _review_jobs[job_id] = {"status": "failed", "error": f"AI review failed: {e}"}
+            _review_jobs[job_id] = {"status": "failed", "error": f"AI review failed: {e}", "created_at": time.time()}
+            _save_review_jobs()
 
 
-_REVIEW_SYSTEM_PROMPT = """你是一个资深的代码审查专家。请对以下多个提交的代码变更进行全面的代码审查。
+_REVIEW_SYSTEM_PROMPT = """
+你是一个资深的代码审查专家。请对以下多个提交的代码变更进行全面的代码审查。
 
-请逐文件分析变更，关注以下方面：
-1. **安全性**: SQL注入、XSS、权限绕过、敏感信息泄露等
-2. **代码质量**: 可读性、可维护性、设计模式、命名规范
-3. **性能**: N+1查询、内存泄漏、大循环、不必要的计算
-4. **错误处理**: 异常捕获、错误日志、边界情况
-5. **逻辑正确性**: 潜在bug、竞态条件、类型安全
-6. **变更影响**: 对现有功能的影响，是否需要同步修改其他模块
+## 输入格式
+你会收到多个 `<commit>` 标签包裹的 diff，每个 diff 包含文件路径、行号、变更内容（+ 为新增，- 为删除）。请基于这些 diff 逐文件进行分析。
 
-输出格式要求（Markdown）：
-```markdown
+## 审查维度
+1. **安全性**: SQL注入、XSS、权限绕过、敏感信息泄露、密钥硬编码等
+2. **代码质量**: 可读性、可维护性、设计模式、命名规范、重复代码
+3. **性能**: N+1查询、内存泄漏、大循环中的低效操作、不必要的计算/分配/拷贝
+4. **错误处理**: 异常捕获范围过大、吞噬错误、缺少错误日志、边界/空值情况
+5. **逻辑正确性**: 潜在bug、竞态条件、类型安全、off-by-one、nil解引用
+6. **变更影响**: 对现有功能的影响，是否需要同步修改其他模块、API兼容性
+
+## 忽略以下内容（不要报告）
+- 纯格式变更（缩进、换行、import 排序、空行增减）
+- 注释拼写修正（非文档注释）
+- 自动生成的文件（如 *.pb.go、*.gen.go、*.graphqls 等）
+- 测试数据文件（testdata/、fixtures/ 下的 .json/.yaml/.csv）
+- 因代码生成工具导致的机械性重复变更
+
+## 输出要求
+- 每个问题描述不超过 3 句话，直击要害
+- 同类问题合并为一组报告，不要逐一列举
+- 如果某类问题（如命名不规范）超过 5 处，只举前 3 个例子，注明"还有 N 处类似"
+- 如果单个 commit 变更超过 500 行，先给出变更结构概览，再挑高风险文件详查
+- 只报告有实际影响的问题，不要为了凑数而找茬
+
+## 输出格式（Markdown）
+
 # 代码审查报告
 
 ## 概览
 - 审查提交数：{count}
 - 变更文件数：{files}
 - 审查时间：{time}
+- 变更总行数：{lines}
+
+### 修改文件列表
+（列出每个变更文件的路径和 +/- 行数）
 
 ## 高风险问题
-### [高危/中危/低危] 问题标题
+### [高危] 问题标题
 - **文件**: 文件路径 (行号)
 - **说明**: 问题描述
 - **建议**: 修复建议
+- **优先级**: 🔴 必须修
+
+### [中危] 问题标题
+- **文件**: 文件路径 (行号)
+- **说明**: 问题描述
+- **建议**: 修复建议
+- **优先级**: 🟡 建议修
+
+### [低危] 问题标题
+- **文件**: 文件路径 (行号)
+- **说明**: 问题描述
+- **建议**: 修复建议
+- **优先级**: 🟢 可选
 
 ## 改进建议
-...
+非阻塞性建议、代码风格统一、重构方向等。
 
 ## 总结
-总体评价和建议。
+- 🔴 必须修：X 项（列出标题）
+- 🟡 建议修：Y 项（列出标题）
+- 🟢 可选：Z 项（列出标题）
+- 总体评价：[1-2 句总结]
 ```"""
 
 
@@ -758,6 +855,7 @@ async def ai_review_commits(body: dict) -> dict:
     job_id = uuid.uuid4().hex[:12]
     async with _review_jobs_lock:
         _review_jobs[job_id] = {"status": "processing", "created_at": time.time()}
+        _save_review_jobs()
 
     asyncio.create_task(_run_review_background(job_id, commit_shas, repo_path))
 
@@ -776,7 +874,12 @@ async def ai_review_result(task_id: str) -> dict:
         job = _review_jobs.get(task_id)
 
     if job is None:
-        raise HTTPException(status_code=404, detail=f"Task not found: {task_id}")
+        # 清理过期任务，保持存储整洁
+        _clean_expired_jobs()
+        raise HTTPException(
+            status_code=404,
+            detail="任务不存在或已过期（超过 10 分钟的已完成/失败任务会自动清理）。请重新发起代码评审。"
+        )
 
     if job["status"] == "processing":
         return {"ok": True, "status": "processing"}
@@ -806,6 +909,119 @@ async def ai_review_result(task_id: str) -> dict:
         "provider": job.get("provider"),
         "tokens": job.get("tokens"),
     }
+
+
+# ═══════════════════════════════════════════════════════════
+# AI Multi-Commit Review — Streaming (SSE)
+# ═══════════════════════════════════════════════════════════
+
+
+@router.post("/ai-review-stream")
+async def ai_review_stream(body: dict) -> StreamingResponse:
+    """AI 评审多个提交 — SSE 流式推送。
+
+    接收 commit SHAs，逐 token 推送审查报告。
+    事件类型: meta → token* → done | error
+    """
+    commit_shas: list[str] = body.get("commit_shas", [])
+    repo_path: str = body.get("repo_path", ".")
+
+    if not commit_shas:
+        raise HTTPException(status_code=400, detail="commit_shas is required")
+
+    async def event_generator():
+        git = _git(repo_path)
+
+        # ── 收集 diff ──
+        yield f"data: {_json.dumps({'type': 'status', 'message': '正在收集提交变更...'})}\n\n"
+
+        commit_infos: list[dict] = []
+        changed_files_list: list[dict] = []
+        all_changed_files: dict[str, ChangedFile] = {}
+        total_additions = 0
+        total_deletions = 0
+        diff_parts: list[str] = []
+
+        for sha in commit_shas:
+            try:
+                detail: CommitDetail = git.commit_detail(sha)
+                commit_infos.append({
+                    "sha": detail.sha,
+                    "short_sha": detail.short_sha,
+                    "author": detail.author,
+                    "date": detail.date,
+                    "message": detail.message,
+                })
+                header = f"--- Commit {detail.short_sha}: {detail.message.split(chr(10))[0][:80]} ---\n"
+                diff_parts.append(header + detail.raw_diff)
+                total_additions += detail.total_additions
+                total_deletions += detail.total_deletions
+                for cf in detail.changed_files:
+                    key = cf.file_path
+                    if key not in all_changed_files:
+                        all_changed_files[key] = cf
+            except (ValueError, RuntimeError) as e:
+                diff_parts.append(f"--- Commit {sha[:8]}: failed to load ({e}) ---\n")
+
+        if not diff_parts:
+            yield f"data: {_json.dumps({'type': 'error', 'message': 'No diff content found for the selected commits'})}\n\n"
+            return
+
+        changed_files_list = [cf.to_dict() for cf in all_changed_files.values()]
+        combined_diff = "\n\n".join(diff_parts)
+
+        # ── 推送元信息 ──
+        yield f"data: {_json.dumps({'type': 'meta', 'commit_infos': commit_infos, 'changed_files': changed_files_list, 'total_additions': total_additions, 'total_deletions': total_deletions})}\n\n"
+
+        # ── 构建消息 ──
+        user_message = f"""请审查以下 {len(commit_shas)} 个提交的代码变更。
+
+## 提交列表
+{chr(10).join(f"- [{c['short_sha']}] {c['message'][:100]}" for c in commit_infos)}
+
+## 变更统计
+- 修改文件数: {len(all_changed_files)}
+- 新增行数: {total_additions}
+- 删除行数: {total_deletions}
+
+## 修改文件列表
+{chr(10).join(f"- `{cf['file_path']}` (+{cf['additions']}/-{cf['deletions']}) [{cf['change_type']}]" for cf in changed_files_list)}
+
+## 变更详情 (Diff)
+```
+{combined_diff[:80000]}
+```
+"""
+
+        providers = list(MODEL_REGISTRY.keys())
+        if not providers:
+            yield f"data: {_json.dumps({'type': 'error', 'message': 'No LLM provider configured. Please set up API keys in settings.'})}\n\n"
+            return
+
+        provider = providers[0]
+
+        yield f"data: {_json.dumps({'type': 'status', 'message': 'AI 正在审查...'})}\n\n"
+
+        async for event in llm_client.chat_stream(
+            provider=provider,
+            messages=[
+                {"role": "system", "content": _REVIEW_SYSTEM_PROMPT},
+                {"role": "user", "content": user_message},
+            ],
+            temperature=0.3,
+            max_tokens=4096,
+        ):
+            yield f"data: {_json.dumps(event)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",  # 禁用 nginx 缓冲
+        },
+    )
 
 
 def _load_checklists() -> dict:

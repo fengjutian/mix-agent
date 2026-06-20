@@ -685,6 +685,22 @@ export function aiReviewResult(taskId: string) {
   }>(`/review/ai-review-result/${taskId}`);
 }
 
+/**
+ * AI 审查多个提交 — SSE 流式版。
+ * 返回原生 fetch Response，调用方通过 res.body.getReader() 逐块读取。
+ * 注意：不走 request() 封装，避免自动超时 abort。
+ */
+export function aiReviewStream(body: {
+  commit_shas: string[];
+  repo_path?: string;
+}): Promise<Response> {
+  return fetch(`${BASE}/review/ai-review-stream`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
 // ── Review Checklists ──
 
 export function getChecklists() {

@@ -15,10 +15,8 @@ import {
   getRepoStatus,
   getFileTree,
   searchCode,
-  getChecklists,
   openInVSCode,
-  aiReviewCommits,
-  aiReviewResult,
+  aiReviewStream,
 } from "../api/client";
 import DirectoryPicker from "../components/DirectoryPicker";
 import { Input } from "../components/ui/input";
@@ -52,10 +50,6 @@ interface TreeEntry {
 interface SearchResult {
   file: string; line: number | string; content: string;
 }
-interface ChecklistItem {
-  id: string; label: string; hint: string;
-}
-
 export default function ReviewPage() {
   // ── State ──
   const [repoPath, setRepoPath] = useState(".");
@@ -99,9 +93,6 @@ export default function ReviewPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
-  // Checklist
-  const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
-  const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
   // File history
   const [fileHistory, setFileHistory] = useState<Commit[]>([]);
   const [showFileHistory, setShowFileHistory] = useState("");
@@ -121,6 +112,7 @@ export default function ReviewPage() {
     tokens?: { prompt: number; completion: number; total: number };
   } | null>(null);
   const pendingExportUrl = useRef<string | null>(null);
+  const reviewAbortRef = useRef<AbortController | null>(null);
 
   // ── Load branches ──
   const loadBranches = useCallback(async (caller = "") => {
@@ -210,7 +202,6 @@ export default function ReviewPage() {
         files: commitDetail.changed_files.map(f => ({
           ...f, reviewed: reviewedFiles.has(f.file_path)
         })),
-        checklist: checklist.map(c => ({ ...c, checked: checkedItems.has(c.id) })),
         exported_at: new Date().toISOString(),
       }, null, 2);
     } else {
@@ -218,12 +209,6 @@ export default function ReviewPage() {
       commitDetail.changed_files.forEach(f => {
         content += `- [${reviewedFiles.has(f.file_path) ? "x" : " "}] \`${f.file_path}\` (+${f.additions}/-${f.deletions})\n`;
       });
-      if (checklist.length > 0) {
-        content += `\n## 审查清单\n\n`;
-        checklist.forEach(c => {
-          content += `- [${checkedItems.has(c.id) ? "x" : " "}] ${c.label}\n`;
-        });
-      }
     }
     const blob = new Blob([content], { type: format === "json" ? "application/json" : "text/markdown" });
     const url = URL.createObjectURL(blob);
@@ -252,62 +237,108 @@ export default function ReviewPage() {
 
   const clearSelection = () => setSelectedCommits(new Set());
 
-  // ── AI Review handler (async: submit → poll) ──
+  // ── AI Review handler — SSE streaming ──
   const handleAiReview = async () => {
     if (selectedCommits.size === 0) return;
     setReviewModalOpen(true);
     setReviewLoading(true);
-    setReviewReport(null);
+    setReviewReport("");  // 空字符串 = 正在接收
     setReviewError(null);
     setReviewMeta(null);
+
+    const controller = new AbortController();
+    reviewAbortRef.current = controller;
+
+    let fullReport = "";
+
     try {
-      // 1) Submit review task
-      const { task_id } = await aiReviewCommits({
+      const res = await aiReviewStream({
         commit_shas: Array.from(selectedCommits),
         repo_path: repoPathRef.current,
       });
 
-      // 2) Poll for result (max 120s)
-      const deadline = Date.now() + 120_000;
-      while (Date.now() < deadline) {
-        await new Promise(r => setTimeout(r, 2000));  // 2s interval
-        const data = await aiReviewResult(task_id);
-        if (data.status === "processing") continue;
-
-        // Completed or failed
-        if (data.ok && data.report) {
-          setReviewReport(data.report);
-          setReviewMeta({
-            commit_infos: data.commit_infos,
-            changed_files: data.changed_files,
-            total_additions: data.total_additions,
-            total_deletions: data.total_deletions,
-            model: data.model,
-            tokens: data.tokens,
-          });
-        } else {
-          setReviewError(data.error || "AI 评审返回空结果");
-        }
+      if (!res.ok) {
+        const errText = await res.text();
+        setReviewError(`${res.status}: ${errText}`);
         setReviewLoading(false);
         return;
       }
 
-      // timeout
-      setReviewError("AI 评审超时（120s），请稍后重试或减少审查的提交数量");
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let streaming = true;
+
+      while (streaming) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const event = JSON.parse(line.slice(6));
+            switch (event.type) {
+              case "status":
+                // 状态消息，可忽略或显示在 loading 文本
+                break;
+              case "meta":
+                setReviewMeta({
+                  commit_infos: event.commit_infos,
+                  changed_files: event.changed_files,
+                  total_additions: event.total_additions,
+                  total_deletions: event.total_deletions,
+                });
+                break;
+              case "token":
+                fullReport += event.content;
+                setReviewReport(fullReport);
+                break;
+              case "done":
+                setReviewMeta(prev => ({
+                  ...prev,
+                  model: event.model,
+                  tokens: event.usage
+                    ? { prompt: event.usage.prompt_tokens || 0, completion: event.usage.completion_tokens || 0, total: event.usage.total_tokens || 0 }
+                    : prev?.tokens,
+                }));
+                setReviewLoading(false);
+                streaming = false;
+                break;
+              case "error":
+                setReviewError(event.message);
+                setReviewLoading(false);
+                streaming = false;
+                break;
+            }
+          } catch {
+            // 跳过非 JSON 行
+          }
+        }
+      }
     } catch (e: any) {
-      setReviewError(e?.message || String(e));
+      if (e.name === "AbortError") {
+        // 用户取消 — 保留已收到的部分内容
+        if (fullReport) {
+          setReviewReport(fullReport + "\n\n*（已取消）*");
+        } else {
+          setReviewError("已取消");
+        }
+      } else {
+        setReviewError(e.message || String(e));
+      }
     } finally {
       setReviewLoading(false);
+      reviewAbortRef.current = null;
     }
   };
 
-  // ── Load Checklist ──
-  useEffect(() => {
-    getChecklists().then(d => {
-      const dl = d.checklists?.["default"] || d.checklists?.[Object.keys(d.checklists)[0]];
-      if (dl?.items) setChecklist(dl.items);
-    }).catch(() => {});
-  }, []);
+  const cancelReview = () => {
+    reviewAbortRef.current?.abort();
+  };
 
   // ── Handlers ──
   const handleCheckout = async (branch: string) => {
@@ -719,26 +750,6 @@ export default function ReviewPage() {
               </div>
 
               {/* Checklist sidebar */}
-              {checklist.length > 0 && (
-                <div style={{ width: 170, minWidth: 150, borderLeft: "1px solid var(--border)", padding: "8px 10px", overflow: "auto", background: "var(--bg-surface)" }}>
-                  <div style={{ fontWeight: 600, fontSize: "0.75rem", marginBottom: 8 }}>审查清单</div>
-                  {checklist.map(item => (
-                    <label key={item.id} style={{ display: "flex", alignItems: "flex-start", gap: 6, marginBottom: 6, cursor: "pointer", fontSize: "0.72rem" }}
-                      title={item.hint}>
-                      <Checkbox checked={checkedItems.has(item.id)}
-                        onCheckedChange={() => {
-                          setCheckedItems(prev => { const n = new Set(prev); n.has(item.id) ? n.delete(item.id) : n.add(item.id); return n; });
-                        }}>
-                        <CheckboxIndicator />
-                      </Checkbox>
-                      <span>{item.label}</span>
-                    </label>
-                  ))}
-                  <div style={{ marginTop: 8, fontSize: "0.65rem", color: "var(--text-muted)" }}>
-                    {checkedItems.size}/{checklist.length} 完成
-                  </div>
-                </div>
-              )}
             </div>
           )}
 
@@ -819,7 +830,7 @@ export default function ReviewPage() {
           <DialogTitle style={{ fontSize: "1rem", fontWeight: 600, paddingRight: 24 }}>
             {reviewLoading ? "🤖 AI 评审中..." : "🤖 AI 代码审查报告"}
           </DialogTitle>
-          {reviewMeta && !reviewLoading && (
+          {reviewMeta && (
             <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginBottom: 8, display: "flex", gap: 16, flexWrap: "wrap" }}>
               <span>提交数: {reviewMeta.commit_infos?.length || 0}</span>
               <span>文件数: {reviewMeta.changed_files?.length || 0}</span>
@@ -834,16 +845,19 @@ export default function ReviewPage() {
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 40, gap: 12 }}>
                 <div style={{ width: 32, height: 32, border: "3px solid var(--border)", borderTopColor: "var(--accent)", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
                 <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-                <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>正在分析代码变更，请稍候...</span>
+                <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                  {reviewReport ? "正在生成报告…" : "正在分析代码变更，请稍候..."}
+                </span>
+                <Button variant="outline" size="sm" onClick={cancelReview}>取消</Button>
               </div>
             )}
             {reviewError && (
-              <div style={{ padding: 16, color: "var(--danger)", fontSize: "0.85rem" }}>
-                <div style={{ fontWeight: 600, marginBottom: 8 }}>❌ 评审失败</div>
-                <pre style={{ whiteSpace: "pre-wrap", fontFamily: "monospace", fontSize: "0.75rem", background: "rgba(255,0,0,0.05)", padding: 12, borderRadius: 6 }}>{reviewError}</pre>
+              <div style={{ padding: 16, color: reviewError.startsWith("任务已过期") ? "var(--warning, #f08c00)" : "var(--danger)", fontSize: "0.85rem" }}>
+                <div style={{ fontWeight: 600, marginBottom: 8 }}>{reviewError.startsWith("任务已过期") ? "⏳ 任务已过期" : "❌ 评审失败"}</div>
+                <pre style={{ whiteSpace: "pre-wrap", fontFamily: "monospace", fontSize: "0.75rem", background: reviewError.startsWith("任务已过期") ? "rgba(255,140,0,0.05)" : "rgba(255,0,0,0.05)", padding: 12, borderRadius: 6 }}>{reviewError}</pre>
               </div>
             )}
-            {reviewReport && !reviewLoading && (
+            {reviewReport && (
               <div className="markdown-body" style={{ fontSize: "0.82rem", lineHeight: 1.6 }}>
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm]}
@@ -851,10 +865,17 @@ export default function ReviewPage() {
                 >
                   {reviewReport}
                 </ReactMarkdown>
+                {reviewLoading && (
+                  <span style={{ display: "inline-block", width: 8, height: 16, background: "var(--accent)", marginLeft: 2, animation: "blink 0.6s step-end infinite" }} />
+                )}
+                <style>{`@keyframes blink { 50% { opacity: 0; } }`}</style>
               </div>
             )}
           </div>
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, borderTop: "1px solid var(--border)", paddingTop: 8, marginTop: 4 }}>
+            {reviewLoading && (
+              <Button variant="outline" size="sm" onClick={cancelReview}>取消</Button>
+            )}
             <DialogClose render={<Button variant="outline" size="sm" />}>关闭</DialogClose>
             {reviewReport && (
               <button
