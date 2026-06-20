@@ -727,6 +727,7 @@ export interface ProxyRequestBody {
   body: string | null;
   content_type: string | null;
   timeout_seconds: number;
+  verify_ssl?: boolean;
 }
 
 export interface ProxyResponseBody {

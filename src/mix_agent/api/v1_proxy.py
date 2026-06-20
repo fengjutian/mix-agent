@@ -31,6 +31,7 @@ class ProxyRequest(BaseModel):
     body: str | None = Field(default=None, description="请求体 (原始字符串)")
     content_type: str | None = Field(default=None, description="Content-Type 头，优先级高于 headers 中的设置")
     timeout_seconds: int = Field(default=30, ge=1, le=120, description="超时时间（秒）")
+    verify_ssl: bool = Field(default=True, description="是否验证 SSL 证书；自签名证书环境请设为 false")
 
 
 class ProxyResponse(BaseModel):
@@ -92,7 +93,7 @@ async def proxy_request(req: ProxyRequest) -> ProxyResponse:
     t0 = time.perf_counter()
     content: str = ""
     try:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(req.timeout_seconds)) as client:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(req.timeout_seconds), verify=req.verify_ssl) as client:
             response = await client.request(
                 method=method,
                 url=url,

@@ -386,6 +386,7 @@ export default function ApiClientPage() {
         method: r.method, url: substitutedUrl, headers: headersMap,
         query_params: queryMap, body: bodyStr,
         content_type: bodyStr ? ct : null, timeout_seconds: 30,
+        verify_ssl: false,
       });
       setTabs(prev => prev.map(t => t.id === tab.id ? { ...t, response: res, loading: false } : t));
       if (tab.name === "新请求" && res.ok) {
