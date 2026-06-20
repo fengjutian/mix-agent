@@ -72,7 +72,8 @@ function SelectPopup({
         <SelectPrimitive.Popup
           data-slot="select-popup"
           className={cn(
-            "z-50 min-w-[8rem] origin-top rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg outline-none",
+            "z-50 min-w-[8rem] max-h-60 origin-top rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg outline-none",
+            "overflow-y-auto",
             "data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95",
             "data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
             className

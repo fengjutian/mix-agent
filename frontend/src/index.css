@@ -24,6 +24,8 @@
   --color-border: var(--border-color);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
   --radius: 0.625rem;
 
   /* Preserve existing font stacks */
@@ -52,6 +54,8 @@
   --input: #14141e;
   --ring: #c6ff2e;
   --radius: 0.625rem;
+  --popover: #181822;
+  --popover-foreground: #edeef0;
 
   /* ═══ Existing mix-agent tokens (unchanged, backward compat) ═══ */
   /* Surfaces */

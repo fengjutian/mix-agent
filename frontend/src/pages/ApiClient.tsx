@@ -255,11 +255,9 @@ function TabBar({ tabs, activeId, onSelect, onClose, onAdd }: {
       ))}
       <TooltipProvider>
         <Tooltip>
-          <TooltipTrigger>
-            <Button variant="ghost" size="icon-xs" onClick={onAdd}
-              className="shrink-0 ml-1 rounded-md text-muted-foreground" title="新建请求标签">
-              +
-            </Button>
+          <TooltipTrigger render={<Button variant="ghost" size="icon-xs" onClick={onAdd}
+            className="shrink-0 ml-1 rounded-md text-muted-foreground" title="新建请求标签" />}>
+            +
           </TooltipTrigger>
           <TooltipPopup>新建请求标签</TooltipPopup>
         </Tooltip>
@@ -471,9 +469,6 @@ export default function ApiClientPage() {
         <div className="flex justify-between items-center mb-1">
           <div>
             <h1 className="text-xl font-semibold mb-0.5">📡 API 客户端</h1>
-            <p className="text-xs text-muted-foreground">
-              Ctrl+Enter 发送 · Ctrl+S 保存到集合 · 双击标签改名
-            </p>
           </div>
           <div className="flex items-center gap-2">
             {/* Environment selector */}
@@ -498,11 +493,9 @@ export default function ApiClientPage() {
             </Select>
 
             <Tooltip>
-              <TooltipTrigger>
-                <Button variant="ghost" size="xs" onClick={() => { setSidebarOpen(!sidebarOpen); }}
-                  className="text-[0.7rem]">
-                  {sidebarOpen ? "◀" : "📁"}
-                </Button>
+              <TooltipTrigger render={<Button variant="ghost" size="xs" onClick={() => { setSidebarOpen(!sidebarOpen); }}
+                className="text-[0.7rem]" />}>
+                {sidebarOpen ? "◀" : "📁"}
               </TooltipTrigger>
               <TooltipPopup>{sidebarOpen ? "收起侧栏" : "展开侧栏"}</TooltipPopup>
             </Tooltip>
@@ -542,9 +535,16 @@ export default function ApiClientPage() {
 
         {/* ── Body: Sidebar + Content ── */}
         <div className="flex flex-1 gap-3 min-h-0">
-          {/* ── Sidebar ── */}
-          {sidebarOpen && (
+          {/* ── Sidebar (VS Code–style: full panel or icon strip) ── */}
+          {sidebarOpen ? (
             <div className="w-[220px] min-w-[220px] overflow-auto border-r border-border pr-2 flex flex-col gap-2">
+              {/* Collapse button inside the sidebar */}
+              <button
+                onClick={() => setSidebarOpen(false)}
+                className="self-end p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors text-xs"
+                title="折叠侧栏"
+              >◀</button>
+
               <Tabs value={sidebarTab} onValueChange={(v) => setSidebarTab(v as "collections" | "envs")}>
                 <TabsList className="w-full">
                   <TabsTab value="collections" className="flex-1 justify-center text-xs">📁 集合</TabsTab>
@@ -680,6 +680,35 @@ export default function ApiClientPage() {
                 </TabsPanel>
               </Tabs>
             </div>
+          ) : (
+            /* ── Collapsed icon strip ── */
+            <div className="w-[40px] min-w-[40px] border-r border-border flex flex-col items-center gap-1 pt-2">
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors text-sm"
+                title="展开侧栏"
+              >▶</button>
+              <button
+                onClick={() => { setSidebarOpen(true); setSidebarTab("collections"); }}
+                className={cn(
+                  "p-1.5 rounded text-sm transition-colors",
+                  sidebarTab === "collections"
+                    ? "text-foreground bg-muted"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                )}
+                title="集合"
+              >📁</button>
+              <button
+                onClick={() => { setSidebarOpen(true); setSidebarTab("envs"); }}
+                className={cn(
+                  "p-1.5 rounded text-sm transition-colors",
+                  sidebarTab === "envs"
+                    ? "text-foreground bg-muted"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                )}
+                title="环境"
+              >🌐</button>
+            </div>
           )}
 
           {/* ── Main Content ── */}
@@ -716,10 +745,8 @@ export default function ApiClientPage() {
                   {loading ? "⏳" : "▶"} 发送
                 </Button>
                 <Tooltip>
-                  <TooltipTrigger>
-                    <Button variant="outline" size="icon-sm" onClick={() => { navigator.clipboard.writeText(curlCmd); }}>
-                      📋
-                    </Button>
+                  <TooltipTrigger render={<Button variant="outline" size="icon-sm" onClick={() => { navigator.clipboard.writeText(curlCmd); }} />}>
+                    📋
                   </TooltipTrigger>
                   <TooltipPopup>复制 cURL</TooltipPopup>
                 </Tooltip>
@@ -896,10 +923,8 @@ export default function ApiClientPage() {
                   )}
                   <div className="flex-1" />
                   <Tooltip>
-                    <TooltipTrigger>
-                      <Button variant="ghost" size="xs" onClick={() => { navigator.clipboard.writeText(response.body); }}>
-                        📋 复制响应
-                      </Button>
+                    <TooltipTrigger render={<Button variant="ghost" size="xs" onClick={() => { navigator.clipboard.writeText(response.body); }} />}>
+                      📋 复制响应
                     </TooltipTrigger>
                     <TooltipPopup>复制响应体到剪贴板</TooltipPopup>
                   </Tooltip>

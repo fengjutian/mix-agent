@@ -337,7 +337,7 @@
   flex: 1;
   overflow-y: auto;
   min-width: 0;
-  padding: clamp(20px, 3vh, 40px) clamp(20px, 3vw, 40px);
+  padding-top: 20px;
 }
 
 /* ── Cards ── */
