@@ -115,7 +115,7 @@ class CallChainTracer:
     def _build_call_graph(self, root: Path) -> None:
         """扫描目录下所有 .py 文件，建立函数调用图。"""
         for py_file in root.rglob("*.py"):
-            if "__pycache__" in str(py_file) or "node_modules" in str(py_file):
+            if any(skip in str(py_file) for skip in ("__pycache__", "node_modules", ".venv", "venv", "site-packages")):
                 continue
             try:
                 source = self._read_file(py_file)

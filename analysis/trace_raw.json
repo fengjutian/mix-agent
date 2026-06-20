@@ -1,0 +1,545 @@
+﻿{
+    "ok":  true,
+    "entry_point":  "POST /proxy",
+    "route_info":  {
+                       "method":  "POST",
+                       "path":  "/proxy",
+                       "handler":  "proxy_request",
+                       "file_path":  "src\\mix_agent\\api\\v1_proxy.py",
+                       "line_number":  52,
+                       "has_auth":  false,
+                       "auth_deps":  [
+
+                                     ],
+                       "tags":  [
+
+                                ]
+                   },
+    "call_chain":  [
+                       {
+                           "name":  "proxy_request",
+                           "kind":  "route",
+                           "file_path":  "src\\mix_agent\\api\\v1_proxy.py",
+                           "line_number":  52
+                       }
+                   ],
+    "tables":  [
+
+               ],
+    "swimlane":  "flowchart LR\n    subgraph client[ð§ Client]\n        direction LR\n        CLIENT[\"POST /api/v1/proxy\"]\n    end\n    subgraph route[ð Route å±]\n        direction LR\n        proxy_request[\"proxy_request\"]\n    end\n    CLIENT --\u003e proxy_request",
+    "diagram_nodes":  [
+                          {
+                              "id":  "proxy_request",
+                              "name":  "proxy_request",
+                              "kind":  "route",
+                              "file_path":  "src\\mix_agent\\api\\v1_proxy.py",
+                              "line_number":  52
+                          }
+                      ],
+    "diagram_edges":  [
+                          {
+                              "from":  "CLIENT",
+                              "to":  "proxy_request"
+                          }
+                      ],
+    "summary":  "å\u0085¥å£: POST /api/v1/proxy | è°ç¨æ·±åº¦: 1 | è§¦è¾¾æ°æ®åº: å¦",
+    "all_routes":  [
+                       {
+                           "method":  "GET",
+                           "path":  "/health",
+                           "full_path":  "/health",
+                           "handler":  "health_check",
+                           "file_path":  "src\\mix_agent\\main.py",
+                           "line_number":  56
+                       },
+                       {
+                           "method":  "GET",
+                           "path":  "/cost/overview",
+                           "full_path":  "/cost/overview",
+                           "handler":  "cost_overview",
+                           "file_path":  "src\\mix_agent\\api\\v1_admin.py",
+                           "line_number":  23
+                       },
+                       {
+                           "method":  "GET",
+                           "path":  "/cost/breakdown",
+                           "full_path":  "/cost/breakdown",
+                           "handler":  "cost_breakdown",
+                           "file_path":  "src\\mix_agent\\api\\v1_admin.py",
+                           "line_number":  29
+                       },
+                       {
+                           "method":  "GET",
+                           "path":  "/models",
+                           "full_path":  "/models",
+                           "handler":  "get_models",
+                           "file_path":  "src\\mix_agent\\api\\v1_admin.py",
+                           "line_number":  39
+                       },
+                       {
+                           "method":  "PUT",
+                           "path":  "/models/assign",
+                           "full_path":  "/models/assign",
+                           "handler":  "assign_model",
+                           "file_path":  "src\\mix_agent\\api\\v1_admin.py",
+                           "line_number":  53
+                       },
+                       {
+                           "method":  "GET",
+                           "path":  "/keys",
+                           "full_path":  "/keys",
+                           "handler":  "get_keys",
+                           "file_path":  "src\\mix_agent\\api\\v1_admin.py",
+                           "line_number":  79
+                       },
+                       {
+                           "method":  "PUT",
+                           "path":  "/keys",
+                           "full_path":  "/keys",
+                           "handler":  "set_key",
+                           "file_path":  "src\\mix_agent\\api\\v1_admin.py",
+                           "line_number":  92
+                       },
+                       {
+                           "method":  "DELETE",
+                           "path":  "/keys",
+                           "full_path":  "/keys",
+                           "handler":  "delete_key",
+                           "file_path":  "src\\mix_agent\\api\\v1_admin.py",
+                           "line_number":  110
+                       },
+                       {
+                           "method":  "GET",
+                           "path":  "/prompts",
+                           "full_path":  "/prompts",
+                           "handler":  "get_prompts",
+                           "file_path":  "src\\mix_agent\\api\\v1_admin.py",
+                           "line_number":  122
+                       },
+                       {
+                           "method":  "POST",
+                           "path":  "/prompts",
+                           "full_path":  "/prompts",
+                           "handler":  "create_prompt",
+                           "file_path":  "src\\mix_agent\\api\\v1_admin.py",
+                           "line_number":  134
+                       },
+                       {
+                           "method":  "PUT",
+                           "path":  "/prompts/{agent}",
+                           "full_path":  "/prompts/{agent}",
+                           "handler":  "update_prompt",
+                           "file_path":  "src\\mix_agent\\api\\v1_admin.py",
+                           "line_number":  152
+                       },
+                       {
+                           "method":  "DELETE",
+                           "path":  "/prompts/{agent}",
+                           "full_path":  "/prompts/{agent}",
+                           "handler":  "delete_prompt",
+                           "file_path":  "src\\mix_agent\\api\\v1_admin.py",
+                           "line_number":  170
+                       },
+                       {
+                           "method":  "POST",
+                           "path":  "/prompts/ai-generate",
+                           "full_path":  "/prompts/ai-generate",
+                           "handler":  "ai_generate_prompt",
+                           "file_path":  "src\\mix_agent\\api\\v1_admin.py",
+                           "line_number":  188
+                       },
+                       {
+                           "method":  "GET",
+                           "path":  "/mcp/servers",
+                           "full_path":  "/mcp/servers",
+                           "handler":  "list_mcp_servers",
+                           "file_path":  "src\\mix_agent\\api\\v1_admin.py",
+                           "line_number":  255
+                       },
+                       {
+                           "method":  "POST",
+                           "path":  "/mcp/servers",
+                           "full_path":  "/mcp/servers",
+                           "handler":  "add_mcp_server",
+                           "file_path":  "src\\mix_agent\\api\\v1_admin.py",
+                           "line_number":  273
+                       },
+                       {
+                           "method":  "PUT",
+                           "path":  "/mcp/servers/{name}",
+                           "full_path":  "/mcp/servers/{name}",
+                           "handler":  "update_mcp_server",
+                           "file_path":  "src\\mix_agent\\api\\v1_admin.py",
+                           "line_number":  306
+                       },
+                       {
+                           "method":  "DELETE",
+                           "path":  "/mcp/servers/{name}",
+                           "full_path":  "/mcp/servers/{name}",
+                           "handler":  "delete_mcp_server",
+                           "file_path":  "src\\mix_agent\\api\\v1_admin.py",
+                           "line_number":  335
+                       },
+                       {
+                           "method":  "POST",
+                           "path":  "/mcp/servers/{name}/test",
+                           "full_path":  "/mcp/servers/{name}/test",
+                           "handler":  "test_mcp_server",
+                           "file_path":  "src\\mix_agent\\api\\v1_admin.py",
+                           "line_number":  344
+                       },
+                       {
+                           "method":  "GET",
+                           "path":  "/settings",
+                           "full_path":  "/settings",
+                           "handler":  "get_global_settings",
+                           "file_path":  "src\\mix_agent\\api\\v1_admin.py",
+                           "line_number":  371
+                       },
+                       {
+                           "method":  "PUT",
+                           "path":  "/settings",
+                           "full_path":  "/settings",
+                           "handler":  "update_global_settings",
+                           "file_path":  "src\\mix_agent\\api\\v1_admin.py",
+                           "line_number":  390
+                       },
+                       {
+                           "method":  "POST",
+                           "path":  "/run",
+                           "full_path":  "/run",
+                           "handler":  "run_agent",
+                           "file_path":  "src\\mix_agent\\api\\v1_agent.py",
+                           "line_number":  25
+                       },
+                       {
+                           "method":  "GET",
+                           "path":  "/{task_id}/result",
+                           "full_path":  "/{task_id}/result",
+                           "handler":  "get_agent_result",
+                           "file_path":  "src\\mix_agent\\api\\v1_agent.py",
+                           "line_number":  125
+                       },
+                       {
+                           "method":  "GET",
+                           "path":  "/routes",
+                           "full_path":  "/routes",
+                           "handler":  "list_routes",
+                           "file_path":  "src\\mix_agent\\api\\v1_analyzer.py",
+                           "line_number":  75
+                       },
+                       {
+                           "method":  "POST",
+                           "path":  "/trace",
+                           "full_path":  "/trace",
+                           "handler":  "trace_interface",
+                           "file_path":  "src\\mix_agent\\api\\v1_analyzer.py",
+                           "line_number":  136
+                       },
+                       {
+                           "method":  "GET",
+                           "path":  "/pending",
+                           "full_path":  "/pending",
+                           "handler":  "list_pending_approvals",
+                           "file_path":  "src\\mix_agent\\api\\v1_approvals.py",
+                           "line_number":  21
+                       },
+                       {
+                           "method":  "GET",
+                           "path":  "/pending/{task_id}",
+                           "full_path":  "/pending/{task_id}",
+                           "handler":  "get_pending_approval",
+                           "file_path":  "src\\mix_agent\\api\\v1_approvals.py",
+                           "line_number":  36
+                       },
+                       {
+                           "method":  "POST",
+                           "path":  "/respond",
+                           "full_path":  "/respond",
+                           "handler":  "respond_approval",
+                           "file_path":  "src\\mix_agent\\api\\v1_approvals.py",
+                           "line_number":  47
+                       },
+                       {
+                           "method":  "GET",
+                           "path":  "/pr/token",
+                           "full_path":  "/pr/token",
+                           "handler":  "get_git_token",
+                           "file_path":  "src\\mix_agent\\api\\v1_pr.py",
+                           "line_number":  31
+                       },
+                       {
+                           "method":  "PUT",
+                           "path":  "/pr/token",
+                           "full_path":  "/pr/token",
+                           "handler":  "set_git_token",
+                           "file_path":  "src\\mix_agent\\api\\v1_pr.py",
+                           "line_number":  39
+                       },
+                       {
+                           "method":  "GET",
+                           "path":  "/pr/list",
+                           "full_path":  "/pr/list",
+                           "handler":  "list_prs",
+                           "file_path":  "src\\mix_agent\\api\\v1_pr.py",
+                           "line_number":  61
+                       },
+                       {
+                           "method":  "GET",
+                           "path":  "/pr/{number}",
+                           "full_path":  "/pr/{number}",
+                           "handler":  "get_pr_detail",
+                           "file_path":  "src\\mix_agent\\api\\v1_pr.py",
+                           "line_number":  89
+                       },
+                       {
+                           "method":  "POST",
+                           "path":  "/webhook/github",
+                           "full_path":  "/webhook/github",
+                           "handler":  "github_webhook",
+                           "file_path":  "src\\mix_agent\\api\\v1_pr.py",
+                           "line_number":  119
+                       },
+                       {
+                           "method":  "POST",
+                           "path":  "/webhook/gitlab",
+                           "full_path":  "/webhook/gitlab",
+                           "handler":  "gitlab_webhook",
+                           "file_path":  "src\\mix_agent\\api\\v1_pr.py",
+                           "line_number":  171
+                       },
+                       {
+                           "method":  "POST",
+                           "path":  "/proxy",
+                           "full_path":  "/proxy",
+                           "handler":  "proxy_request",
+                           "file_path":  "src\\mix_agent\\api\\v1_proxy.py",
+                           "line_number":  52
+                       },
+                       {
+                           "method":  "GET",
+                           "path":  "/commits",
+                           "full_path":  "/commits",
+                           "handler":  "list_commits",
+                           "file_path":  "src\\mix_agent\\api\\v1_review.py",
+                           "line_number":  29
+                       },
+                       {
+                           "method":  "GET",
+                           "path":  "/commits/{sha}",
+                           "full_path":  "/commits/{sha}",
+                           "handler":  "get_commit_detail",
+                           "file_path":  "src\\mix_agent\\api\\v1_review.py",
+                           "line_number":  64
+                       },
+                       {
+                           "method":  "GET",
+                           "path":  "/branches",
+                           "full_path":  "/branches",
+                           "handler":  "list_branches",
+                           "file_path":  "src\\mix_agent\\api\\v1_review.py",
+                           "line_number":  89
+                       },
+                       {
+                           "method":  "POST",
+                           "path":  "/branches/checkout",
+                           "full_path":  "/branches/checkout",
+                           "handler":  "checkout_branch",
+                           "file_path":  "src\\mix_agent\\api\\v1_review.py",
+                           "line_number":  111
+                       },
+                       {
+                           "method":  "GET",
+                           "path":  "/file",
+                           "full_path":  "/file",
+                           "handler":  "read_file",
+                           "file_path":  "src\\mix_agent\\api\\v1_review.py",
+                           "line_number":  133
+                       },
+                       {
+                           "method":  "GET",
+                           "path":  "/blame",
+                           "full_path":  "/blame",
+                           "handler":  "blame_file",
+                           "file_path":  "src\\mix_agent\\api\\v1_review.py",
+                           "line_number":  160
+                       },
+                       {
+                           "method":  "GET",
+                           "path":  "/diffs",
+                           "full_path":  "/diffs",
+                           "handler":  "get_diff",
+                           "file_path":  "src\\mix_agent\\api\\v1_review.py",
+                           "line_number":  190
+                       },
+                       {
+                           "method":  "GET",
+                           "path":  "/diffs/file",
+                           "full_path":  "/diffs/file",
+                           "handler":  "diff_file",
+                           "file_path":  "src\\mix_agent\\api\\v1_review.py",
+                           "line_number":  213
+                       },
+                       {
+                           "method":  "GET",
+                           "path":  "/status",
+                           "full_path":  "/status",
+                           "handler":  "repo_status",
+                           "file_path":  "src\\mix_agent\\api\\v1_review.py",
+                           "line_number":  242
+                       },
+                       {
+                           "method":  "GET",
+                           "path":  "/stashes",
+                           "full_path":  "/stashes",
+                           "handler":  "list_stashes",
+                           "file_path":  "src\\mix_agent\\api\\v1_review.py",
+                           "line_number":  262
+                       },
+                       {
+                           "method":  "POST",
+                           "path":  "/stashes",
+                           "full_path":  "/stashes",
+                           "handler":  "create_stash",
+                           "file_path":  "src\\mix_agent\\api\\v1_review.py",
+                           "line_number":  281
+                       },
+                       {
+                           "method":  "POST",
+                           "path":  "/stashes/pop",
+                           "full_path":  "/stashes/pop",
+                           "handler":  "pop_stash",
+                           "file_path":  "src\\mix_agent\\api\\v1_review.py",
+                           "line_number":  298
+                       },
+                       {
+                           "method":  "GET",
+                           "path":  "/tags",
+                           "full_path":  "/tags",
+                           "handler":  "list_tags",
+                           "file_path":  "src\\mix_agent\\api\\v1_review.py",
+                           "line_number":  319
+                       },
+                       {
+                           "method":  "GET",
+                           "path":  "/remotes",
+                           "full_path":  "/remotes",
+                           "handler":  "list_remotes",
+                           "file_path":  "src\\mix_agent\\api\\v1_review.py",
+                           "line_number":  338
+                       },
+                       {
+                           "method":  "GET",
+                           "path":  "/dirs",
+                           "full_path":  "/dirs",
+                           "handler":  "list_dirs",
+                           "file_path":  "src\\mix_agent\\api\\v1_review.py",
+                           "line_number":  362
+                       },
+                       {
+                           "method":  "GET",
+                           "path":  "/tree",
+                           "full_path":  "/tree",
+                           "handler":  "file_tree",
+                           "file_path":  "src\\mix_agent\\api\\v1_review.py",
+                           "line_number":  425
+                       },
+                       {
+                           "method":  "GET",
+                           "path":  "/search",
+                           "full_path":  "/search",
+                           "handler":  "search_code",
+                           "file_path":  "src\\mix_agent\\api\\v1_review.py",
+                           "line_number":  470
+                       },
+                       {
+                           "method":  "POST",
+                           "path":  "/open-in-vscode",
+                           "full_path":  "/open-in-vscode",
+                           "handler":  "open_in_vscode",
+                           "file_path":  "src\\mix_agent\\api\\v1_review.py",
+                           "line_number":  518
+                       },
+                       {
+                           "method":  "POST",
+                           "path":  "/ai-review-commits",
+                           "full_path":  "/ai-review-commits",
+                           "handler":  "ai_review_commits",
+                           "file_path":  "src\\mix_agent\\api\\v1_review.py",
+                           "line_number":  835
+                       },
+                       {
+                           "method":  "GET",
+                           "path":  "/ai-review-result/{task_id}",
+                           "full_path":  "/ai-review-result/{task_id}",
+                           "handler":  "ai_review_result",
+                           "file_path":  "src\\mix_agent\\api\\v1_review.py",
+                           "line_number":  866
+                       },
+                       {
+                           "method":  "POST",
+                           "path":  "/ai-review-stream",
+                           "full_path":  "/ai-review-stream",
+                           "handler":  "ai_review_stream",
+                           "file_path":  "src\\mix_agent\\api\\v1_review.py",
+                           "line_number":  920
+                       },
+                       {
+                           "method":  "GET",
+                           "path":  "/checklists",
+                           "full_path":  "/checklists",
+                           "handler":  "list_checklists",
+                           "file_path":  "src\\mix_agent\\api\\v1_review.py",
+                           "line_number":  1049
+                       },
+                       {
+                           "method":  "PUT",
+                           "path":  "/checklists",
+                           "full_path":  "/checklists",
+                           "handler":  "save_checklist",
+                           "file_path":  "src\\mix_agent\\api\\v1_review.py",
+                           "line_number":  1055
+                       },
+                       {
+                           "method":  "POST",
+                           "path":  "/",
+                           "full_path":  "/",
+                           "handler":  "create_task",
+                           "file_path":  "src\\mix_agent\\api\\v1_tasks.py",
+                           "line_number":  19
+                       },
+                       {
+                           "method":  "GET",
+                           "path":  "/{task_id}",
+                           "full_path":  "/{task_id}",
+                           "handler":  "get_task",
+                           "file_path":  "src\\mix_agent\\api\\v1_tasks.py",
+                           "line_number":  34
+                       },
+                       {
+                           "method":  "GET",
+                           "path":  "/{task_id}/findings",
+                           "full_path":  "/{task_id}/findings",
+                           "handler":  "get_findings",
+                           "file_path":  "src\\mix_agent\\api\\v1_tasks.py",
+                           "line_number":  43
+                       },
+                       {
+                           "method":  "GET",
+                           "path":  "/{task_id}/report",
+                           "full_path":  "/{task_id}/report",
+                           "handler":  "get_report",
+                           "file_path":  "src\\mix_agent\\api\\v1_tasks.py",
+                           "line_number":  52
+                       },
+                       {
+                           "method":  "POST",
+                           "path":  "/{task_id}/cancel",
+                           "full_path":  "/{task_id}/cancel",
+                           "handler":  "cancel_task",
+                           "file_path":  "src\\mix_agent\\api\\v1_tasks.py",
+                           "line_number":  65
+                       }
+                   ],
+    "error":  ""
+}

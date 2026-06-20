@@ -1,5 +1,6 @@
-import { useState, useCallback, useEffect, useMemo } from "react";
-import { sendProxyRequest, type ProxyResponseBody } from "../api/client";
+import { useState, useCallback, useEffect, useMemo, Fragment } from "react";
+import { sendProxyRequest, aiAnalyzeRequest, listProjectDirs, type ProxyResponseBody, type AiTraceResult } from "../api/client";
+import mermaid from "mermaid";
 import { Tabs, TabsList, TabsTab, TabsPanel } from "../components/ui/tabs";
 import { Select, SelectTrigger, SelectValue, SelectPopup, SelectItem, SelectItemIndicator } from "../components/ui/select";
 import { Collapsible, CollapsibleTrigger, CollapsiblePanel } from "../components/ui/collapsible";
@@ -13,10 +14,34 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { cn } from "../lib/utils";
 
+// Initialize mermaid
+mermaid.initialize({
+  startOnLoad: false,
+  theme: "default",
+  securityLevel: "loose",
+  fontFamily: "ui-sans-serif, system-ui, sans-serif",
+});
+
 /* ═══════════════════════════════════════════════════════════════════════
    API Client — Postman-like HTTP request tool
    Built with @base-ui/react primitives + Tailwind CSS v4
    ═══════════════════════════════════════════════════════════════════════ */
+
+// ── Mermaid sanitize (frontend fallback) ──
+
+function sanitizeMermaid(code: string): string {
+  let c = code;
+  // Fix unquoted labels: NODE[content] -> NODE["content"]
+  c = c.replace(/(\w+)\[([^\]]*?)\]/g, (_m, id, label: string) => {
+    if (label.startsWith('"') && label.endsWith('"')) return _m;
+    const clean = label.replace(/[/(){}\<\>]/g, " ").replace(/\s+/g, " ").trim();
+    return `${id}["${clean}"]`;
+  });
+  // Remove HTML tags
+  c = c.replace(/<br\s*\/?\s*>/gi, ", ");
+  c = c.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
+  return c;
+}
 
 // ── Constants ──
 
@@ -323,6 +348,89 @@ export default function ApiClientPage() {
   const [reqConfigTab, setReqConfigTab] = useState("headers");
   const [respTab, setRespTab] = useState("body");
   const [bodyViewMode, setBodyViewMode] = useState<"pretty" | "raw" | "preview">("pretty");
+
+  // ── AI Analysis modal ──
+  const [aiModalOpen, setAiModalOpen] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiResult, setAiResult] = useState<AiTraceResult | null>(null);
+  const [aiError, setAiError] = useState("");
+  const [aiSvg, setAiSvg] = useState<string | null>(null);
+  const [aiSvgError, setAiSvgError] = useState("");
+  const [aiProjectDir, setAiProjectDir] = useState(".");
+  const [aiDirList, setAiDirList] = useState<Array<{ name: string; path: string; relative: string }>>([]);
+  const [aiDirParents, setAiDirParents] = useState<Array<{ name: string; path: string; relative: string }>>([]);
+  const [aiDirShow, setAiDirShow] = useState(false);
+  const [expandedCodeRow, setExpandedCodeRow] = useState<number | null>(null);
+
+  const browseProjectDir = useCallback(async (dirPath: string) => {
+    try {
+      const res = await listProjectDirs(dirPath);
+      if (res.ok) {
+        setAiDirList(res.dirs);
+        setAiDirParents(res.parents);
+        setAiDirShow(true);
+        setAiProjectDir(res.current);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  // Render mermaid when AI result changes
+  useEffect(() => {
+    if (!aiResult?.ai_swimlane) {
+      setAiSvg(null);
+      setAiSvgError("");
+      return;
+    }
+    const code = sanitizeMermaid(aiResult.ai_swimlane);
+    const id = "ai-swimlane-" + Math.random().toString(36).slice(2);
+    mermaid
+      .render(id, code)
+      .then(({ svg }) => { setAiSvg(svg); setAiSvgError(""); })
+      .catch((err) => {
+        console.error("Mermaid error:", err);
+        setAiSvg(null);
+        setAiSvgError(String(err).slice(0, 300));
+      });
+  }, [aiResult?.ai_swimlane]);
+
+  const openAiModal = useCallback(() => {
+    if (!req.url.trim()) {
+      setAiError("请先输入 URL");
+    } else {
+      setAiError("");
+    }
+    setAiResult(null);
+    setAiSvg(null);
+    setAiSvgError("");
+    setAiModalOpen(true);
+  }, [req.url]);
+
+  const startAiAnalyze = useCallback(async () => {
+    if (!req.url.trim()) {
+      setAiError("请先输入 URL");
+      return;
+    }
+    setAiLoading(true);
+    setAiResult(null);
+    setAiError("");
+    try {
+      const result = await aiAnalyzeRequest({
+        method: req.method,
+        url: req.url,
+        headers: Object.fromEntries(
+          req.headers.filter(h => h.enabled && h.key.trim()).map(h => [h.key.trim(), h.value])
+        ),
+        body: req.body,
+        source_root: aiProjectDir,
+      });
+      setAiResult(result);
+      if (!result.ok) setAiError(result.error || "分析失败");
+    } catch (e: any) {
+      setAiError(e.message || "AI 分析请求失败");
+    } finally {
+      setAiLoading(false);
+    }
+  }, [req.method, req.url, req.headers, req.body, aiProjectDir]);
 
   // ── Tab operations ──
   const addTab = useCallback(() => {
@@ -750,6 +858,12 @@ export default function ApiClientPage() {
                   </TooltipTrigger>
                   <TooltipPopup>复制 cURL</TooltipPopup>
                 </Tooltip>
+                <Button variant="outline" size="sm"
+                  onClick={openAiModal}
+                  className="gap-1 text-xs font-medium whitespace-nowrap"
+                >
+                  🤖 AI分析
+                </Button>
               </div>
 
               {/* Request config tabs */}
@@ -1015,6 +1129,210 @@ export default function ApiClientPage() {
           </div>
         </div>
       </div>
+
+      {/* ── AI Analysis Modal ── */}
+      <Dialog open={aiModalOpen} onOpenChange={setAiModalOpen}>
+        <DialogContent className="!w-[80vw] !max-w-[80vw] max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              🤖 AI 调用链分析
+              <span className={cn("text-xs font-mono font-bold", METHOD_COLORS[req.method])}>
+                {req.method}
+              </span>
+              <span className="text-xs text-muted-foreground font-normal truncate max-w-[400px]">
+                {req.url || "(无 URL)"}
+              </span>
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto py-2 space-y-4">
+            {/* Project directory selector — always visible */}
+            {!aiLoading && !aiResult && !aiError && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 rounded-lg border border-border bg-secondary/30 p-3">
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">📁 项目目录</span>
+                  <Input value={aiProjectDir} onChange={(e) => { setAiProjectDir(e.target.value); setAiDirShow(false); }} placeholder="." className="flex-1 h-7 text-xs font-mono" />
+                  <Button size="icon-sm" variant="ghost" onClick={() => browseProjectDir(aiProjectDir)} title="浏览目录" className="shrink-0">📂</Button>
+                  <Button size="sm" onClick={startAiAnalyze} className="gap-1 text-xs">🚀 开始分析</Button>
+                </div>
+                {aiDirShow && (aiDirParents.length > 0 || aiDirList.length > 0) && (
+                  <div className="rounded-lg border border-border bg-card p-2 max-h-[200px] overflow-y-auto space-y-0.5">
+                    {aiDirParents.map((d) => (
+                      <button key={d.path} onClick={() => browseProjectDir(d.path)}
+                        className="block w-full text-left px-2 py-1 rounded text-xs font-mono hover:bg-muted text-muted-foreground"
+                      >📁 ../{d.name}</button>
+                    ))}
+                    {aiDirList.map((d) => (
+                      <button key={d.path} onClick={() => { setAiProjectDir(d.relative); setAiDirShow(false); }}
+                        className="block w-full text-left px-2 py-1 rounded text-xs font-mono hover:bg-muted"
+                      >📁 {d.name}</button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            {aiLoading && (
+              <div className="flex flex-col items-center justify-center py-12 gap-3">
+                <div className="animate-spin text-3xl">⏳</div>
+                <p className="text-sm text-muted-foreground">AI 正在分析调用链，请稍候…</p>
+              </div>
+            )}
+            {!aiLoading && aiError && (
+              <>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 rounded-lg border border-border bg-secondary/30 p-3">
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">📁 项目目录</span>
+                    <Input value={aiProjectDir} onChange={(e) => { setAiProjectDir(e.target.value); setAiDirShow(false); }} placeholder="." className="flex-1 h-7 text-xs font-mono" />
+                    <Button size="icon-sm" variant="ghost" onClick={() => browseProjectDir(aiProjectDir)} title="浏览目录" className="shrink-0">📂</Button>
+                    <Button size="sm" onClick={startAiAnalyze} className="gap-1 text-xs">🔄 重试</Button>
+                  </div>
+                  {aiDirShow && (aiDirParents.length > 0 || aiDirList.length > 0) && (
+                    <div className="rounded-lg border border-border bg-card p-2 max-h-[200px] overflow-y-auto space-y-0.5">
+                      {aiDirParents.map((d) => (
+                        <button key={d.path} onClick={() => browseProjectDir(d.path)}
+                          className="block w-full text-left px-2 py-1 rounded text-xs font-mono hover:bg-muted text-muted-foreground"
+                        >📁 ../{d.name}</button>
+                      ))}
+                      {aiDirList.map((d) => (
+                        <button key={d.path} onClick={() => { setAiProjectDir(d.relative); setAiDirShow(false); }}
+                          className="block w-full text-left px-2 py-1 rounded text-xs font-mono hover:bg-muted"
+                        >📁 {d.name}</button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="rounded-lg bg-destructive/10 border border-destructive/30 text-destructive text-sm px-4 py-3">
+                  {aiError}
+                </div>
+              </>
+            )}
+            {!aiLoading && aiResult && aiResult.ok && (
+              <>
+                {/* Re-analyze bar */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 rounded-lg border border-border bg-secondary/30 p-2">
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">📁</span>
+                    <Input value={aiProjectDir} onChange={(e) => { setAiProjectDir(e.target.value); setAiDirShow(false); }} placeholder="." className="flex-1 h-7 text-xs font-mono" />
+                    <Button size="icon-sm" variant="ghost" onClick={() => browseProjectDir(aiProjectDir)} title="浏览目录" className="shrink-0">📂</Button>
+                    <Button size="sm" variant="outline" onClick={startAiAnalyze} className="gap-1 text-xs">🔄 重新分析</Button>
+                  </div>
+                  {aiDirShow && (aiDirParents.length > 0 || aiDirList.length > 0) && (
+                    <div className="rounded-lg border border-border bg-card p-2 max-h-[200px] overflow-y-auto space-y-0.5">
+                      {aiDirParents.map((d) => (
+                        <button key={d.path} onClick={() => browseProjectDir(d.path)}
+                          className="block w-full text-left px-2 py-1 rounded text-xs font-mono hover:bg-muted text-muted-foreground"
+                        >📁 ../{d.name}</button>
+                      ))}
+                      {aiDirList.map((d) => (
+                        <button key={d.path} onClick={() => { setAiProjectDir(d.relative); setAiDirShow(false); }}
+                          className="block w-full text-left px-2 py-1 rounded text-xs font-mono hover:bg-muted"
+                        >📁 {d.name}</button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {aiResult.ai_summary && (
+                  <div className="rounded-lg border border-border bg-secondary/30 p-3">
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">📝 AI 分析总结</h4>
+                    <p className="text-sm whitespace-pre-wrap leading-relaxed">{aiResult.ai_summary}</p>
+                  </div>
+                )}
+                {aiResult.ai_swimlane && (
+                  <div className="rounded-lg border border-border bg-card p-3">
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">📊 泳道图</h4>
+                    <div className="overflow-x-auto bg-white rounded-md p-3 border border-border min-h-[100px]">
+                      {aiSvg ? (
+                        <div dangerouslySetInnerHTML={{ __html: aiSvg }} className="flex justify-center" />
+                      ) : aiSvgError ? (
+                        <p className="text-destructive text-sm py-4">泳道图渲染失败: {aiSvgError}</p>
+                      ) : (
+                        <p className="text-muted-foreground text-sm py-4 text-center">正在渲染泳道图…</p>
+                      )}
+                    </div>
+                    <Collapsible>
+                      <CollapsibleTrigger className="text-xs text-muted-foreground hover:text-foreground mt-1.5 inline-block cursor-pointer">📄 查看 Mermaid 源码</CollapsibleTrigger>
+                      <CollapsiblePanel>
+                        <pre className="mt-1 p-2 rounded bg-secondary border border-border text-[0.7rem] font-mono whitespace-pre-wrap max-h-[200px] overflow-auto">{aiResult.ai_swimlane}</pre>
+                      </CollapsiblePanel>
+                    </Collapsible>
+                  </div>
+                )}
+                {aiResult.call_chain.length > 0 && (
+                  <Collapsible>
+                    <CollapsibleTrigger className="text-xs font-semibold text-muted-foreground uppercase tracking-wider cursor-pointer hover:text-foreground block">🔗 后端调用链 ({aiResult.call_chain.length} 个节点)</CollapsibleTrigger>
+                    <CollapsiblePanel>
+                      <div className="mt-1.5 rounded-lg border border-border overflow-hidden">
+                        <table className="w-full text-xs">
+                          <thead><tr className="bg-secondary"><th className="text-left p-2 font-medium text-muted-foreground">函数</th><th className="text-left p-2 font-medium text-muted-foreground">类型</th><th className="text-left p-2 font-medium text-muted-foreground">位置</th></tr></thead>
+                          <tbody>
+                            {aiResult.call_chain.map((n, i) => (
+                              <Fragment key={i}>
+                                <tr
+                                  className={cn("border-t border-border/50 hover:bg-muted/30", n.code && "cursor-pointer")}
+                                  onClick={() => n.code && setExpandedCodeRow(expandedCodeRow === i ? null : i)}
+                                  title={n.code ? "点击查看源码" : undefined}
+                                >
+                                  <td className="p-2 font-mono">{n.name}</td>
+                                  <td className="p-2"><span className={cn("px-1.5 py-0.5 rounded text-[0.65rem]", n.kind === "route" ? "bg-blue-500/10 text-blue-400" : n.kind === "service" ? "bg-green-500/10 text-green-400" : n.kind === "db" ? "bg-red-500/10 text-red-400" : "bg-muted text-muted-foreground")}>{n.kind}</span></td>
+                                  <td className="p-2 font-mono text-muted-foreground">{n.file_path}:{n.line_number}</td>
+                                </tr>
+                                {expandedCodeRow === i && n.code && (
+                                  <tr className="border-t border-border/30 bg-secondary/20">
+                                    <td colSpan={3} className="p-0">
+                                      <pre className="p-3 text-[0.7rem] font-mono whitespace-pre overflow-x-auto max-h-[300px] overflow-y-auto">{n.code}</pre>
+                                    </td>
+                                  </tr>
+                                )}
+                              </Fragment>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </CollapsiblePanel>
+                  </Collapsible>
+                )}
+                {aiResult.tables.length > 0 && (
+                  <Collapsible>
+                    <CollapsibleTrigger className="text-xs font-semibold text-muted-foreground uppercase tracking-wider cursor-pointer hover:text-foreground block">🗄️ 涉及数据表 ({aiResult.tables.length})</CollapsibleTrigger>
+                    <CollapsiblePanel>
+                      <div className="mt-1.5 rounded-lg border border-border overflow-hidden">
+                        <table className="w-full text-xs">
+                          <thead><tr className="bg-secondary"><th className="text-left p-2 font-medium text-muted-foreground">表名</th><th className="text-left p-2 font-medium text-muted-foreground">操作</th><th className="text-left p-2 font-medium text-muted-foreground">位置</th></tr></thead>
+                          <tbody>
+                            {aiResult.tables.map((t, i) => (
+                              <tr key={i} className="border-t border-border/50 hover:bg-muted/30">
+                                <td className="p-2 font-mono">{t.table_name}</td>
+                                <td className="p-2"><span className={cn("px-1.5 py-0.5 rounded text-[0.65rem]", t.operation === "SELECT" ? "bg-blue-500/10 text-blue-400" : t.operation === "INSERT" ? "bg-green-500/10 text-green-400" : t.operation === "UPDATE" ? "bg-yellow-500/10 text-yellow-400" : t.operation === "DELETE" ? "bg-red-500/10 text-red-400" : "bg-muted text-muted-foreground")}>{t.operation}</span></td>
+                                <td className="p-2 font-mono text-muted-foreground">{t.file_path}:{t.line_number}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </CollapsiblePanel>
+                  </Collapsible>
+                )}
+                {aiResult.route_info && (
+                  <div className="rounded-lg border border-border bg-secondary/30 p-3">
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">🎯 匹配路由</h4>
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className={cn("px-2 py-0.5 rounded text-xs font-mono font-bold", METHOD_COLORS[aiResult.route_info.method])}>{aiResult.route_info.method}</span>
+                      <span className="font-mono text-xs">{aiResult.route_info.path}</span>
+                      <span className="text-muted-foreground text-xs">→</span>
+                      <span className="font-mono text-xs">{aiResult.route_info.handler}()</span>
+                      <span className="text-muted-foreground text-[0.65rem]">@ {aiResult.route_info.file_path}:{aiResult.route_info.line_number}</span>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(aiResult?.ai_swimlane || aiResult?.swimlane || ""); }} disabled={!aiResult?.ai_swimlane}>📋 复制 Mermaid</Button>
+            <DialogClose render={<Button variant="outline" size="sm">关闭</Button>} />
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </TooltipProvider>
   );
 }

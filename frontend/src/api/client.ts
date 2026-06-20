@@ -345,6 +345,18 @@ export function traceInterface(method: string, path: string, sourceRoot: string 
   });
 }
 
+// ── Project Directory Browser ──
+
+export function listProjectDirs(dirPath: string = ".") {
+  return request<{
+    ok: boolean;
+    current: string;
+    dirs: Array<{ name: string; path: string; relative: string }>;
+    parents: Array<{ name: string; path: string; relative: string }>;
+    error?: string;
+  }>(`/analyzer/dirs?path=${encodeURIComponent(dirPath)}`);
+}
+
 // ── Review ──
 
 export function listCommits(params: {
@@ -744,6 +756,62 @@ export function sendProxyRequest(req: ProxyRequestBody) {
   return request<ProxyResponseBody>("/proxy", {
     method: "POST",
     body: JSON.stringify(req),
+  });
+}
+
+// ── AI 增强调用链分析 ──
+
+export interface AiTraceRequestBody {
+  method: string;
+  url: string;
+  headers: Record<string, string>;
+  body: string;
+  source_root?: string;
+}
+
+export interface AiTraceResult {
+  ok: boolean;
+  ai_swimlane: string;
+  ai_summary: string;
+  call_chain: Array<{
+    name: string;
+    kind: string;
+    file_path: string;
+    line_number: number;
+    code?: string;
+  }>;
+  tables: Array<{
+    table_name: string;
+    class_name: string | null;
+    operation: string;
+    location: string;
+    file_path: string;
+    line_number: number;
+  }>;
+  swimlane: string;
+  diagram_nodes: Array<{
+    id: string;
+    name: string;
+    kind: string;
+    file_path: string;
+    line_number: number;
+  }>;
+  diagram_edges: Array<{ from: string; to: string }>;
+  route_info: {
+    method: string;
+    path: string;
+    handler: string;
+    file_path: string;
+    line_number: number;
+  } | null;
+  error: string;
+}
+
+export function aiAnalyzeRequest(body: AiTraceRequestBody) {
+  return request<AiTraceResult>("/analyzer/ai-trace", {
+    method: "POST",
+    body: JSON.stringify(body),
+    timeoutSeconds: 120,
   });
 }
 

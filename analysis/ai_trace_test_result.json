@@ -1,0 +1,594 @@
+﻿{
+    "ok":  true,
+    "ai_swimlane":  "flowchart TD\n    subgraph frontend[\"ð§ åç«¯ (Browser)\"]\n        F1[ç¨æ·ç¹å»åéæé®]\n        F2[fetch() åèµ· POST è¯·æ±]\n        F3[æ¥æ¶ååºå¹¶å±ç¤ºç»æ]\n    end\n    subgraph backend[\"âï¸ åç«¯ (FastAPI - mix-agent)\"]\n        B1[CORS ä¸­é´ä»¶æ ¡éª]\n        B2[AuthMiddleware è®¤è¯]\n        B3[è·¯ç± Handler proxy_request]\n        B4[è§£æè¯·æ±ä½ method å url]\n        B5[Service å±è®°å½è¯·æ±æ¥å¿]\n        B6[åèµ·å¤é¨ HTTP ä»£çè¯·æ±]\n        B7[è¿åä»£çååº]\n    end\n    subgraph data[\"ðï¸ æ°æ®å± / å¤é¨æå¡\"]\n        D1[å¤é¨æå¡ httpbin.org]\n        D2[æ°æ®åºï¼æ¥å¿å­å¨ï¼]\n    end\n    F1 --\u003e F2 --\u003e B1 --\u003e B2 --\u003e B3 --\u003e B4 --\u003e B5 --\u003e D2\n    B5 --\u003e B6 --\u003e D1\n    D1 --\u003e B7 --\u003e F3",
+    "ai_summary":  "æ¬æ¬¡è¯·æ±ä¸ºåç«¯åèµ·ç HTTP ä»£çè°ç¨ï¼ç¨æ·ç¹å»åéåéè¿ fetch å°ç®æ  URL æäº¤è³ /api/v1/proxyãåç«¯ä¾æ¬¡ç»è¿ CORS æ ¡éªãè®¤è¯ãè·¯ç±å¤çï¼è§£æåºåå§æ¹æ³ä¸ç®æ å°åï¼Service å±å\u0085å°è¯·æ±æ¥å¿åå\u0085¥æ°æ®åºï¼åå httpbin.org åèµ·çå®ç GET è¯·æ±ï¼æç»å°å¤é¨æå¡çååºåæ ·è¿ååç«¯å±ç¤ºï¼å½¢æâåç«¯âåç«¯âæ°æ®å±âçå®æ´è°ç¨é¾è·¯ã",
+    "call_chain":  [
+                       {
+                           "name":  "proxy_request",
+                           "kind":  "route",
+                           "file_path":  "src\\mix_agent\\api\\v1_proxy.py",
+                           "line_number":  52
+                       },
+                       {
+                           "name":  "b64encode",
+                           "kind":  "function",
+                           "file_path":  ".venv\\Lib\\site-packages\\sqlalchemy\\util\\compat.py",
+                           "line_number":  279
+                       },
+                       {
+                           "name":  "decode",
+                           "kind":  "function",
+                           "file_path":  ".venv\\Lib\\site-packages\\websockets\\extensions\\permessage_deflate.py",
+                           "line_number":  92
+                       },
+                       {
+                           "name":  "ToUnicode",
+                           "kind":  "function",
+                           "file_path":  ".venv\\Lib\\site-packages\\idna\\compat.py",
+                           "line_number":  19
+                       },
+                       {
+                           "name":  "append",
+                           "kind":  "function",
+                           "file_path":  ".venv\\Lib\\site-packages\\_pytest\\junitxml.py",
+                           "line_number":  97
+                       },
+                       {
+                           "name":  "CheckValue",
+                           "kind":  "function",
+                           "file_path":  ".venv\\Lib\\site-packages\\google\\protobuf\\internal\\type_checkers.py",
+                           "line_number":  297
+                       },
+                       {
+                           "name":  "TruncateToFourByteFloat",
+                           "kind":  "function",
+                           "file_path":  ".venv\\Lib\\site-packages\\google\\protobuf\\internal\\type_checkers.py",
+                           "line_number":  36
+                       },
+                       {
+                           "name":  "pack",
+                           "kind":  "function",
+                           "file_path":  ".venv\\Lib\\site-packages\\redis\\connection.py",
+                           "line_number":  94
+                       },
+                       {
+                           "name":  "Any",
+                           "kind":  "function",
+                           "file_path":  ".venv\\Lib\\site-packages\\sqlalchemy\\dialects\\postgresql\\array.py",
+                           "line_number":  50
+                       },
+                       {
+                           "name":  "any",
+                           "kind":  "function",
+                           "file_path":  ".venv\\Lib\\site-packages\\sqlalchemy\\sql\\sqltypes.py",
+                           "line_number":  3066
+                       },
+                       {
+                           "name":  "array_function_dispatch",
+                           "kind":  "function",
+                           "file_path":  ".venv\\Lib\\site-packages\\numpy\\_core\\overrides.py",
+                           "line_number":  108
+                       },
+                       {
+                           "name":  "add",
+                           "kind":  "service",
+                           "file_path":  "src\\mix_agent\\services\\prompt_store.py",
+                           "line_number":  128
+                       },
+                       {
+                           "name":  "getattr",
+                           "kind":  "db",
+                           "file_path":  ".venv\\Lib\\site-packages\\jinja2\\sandbox.py",
+                           "line_number":  314
+                       },
+                       {
+                           "name":  "signature",
+                           "kind":  "function",
+                           "file_path":  ".venv\\Lib\\site-packages\\_pytest\\compat.py",
+                           "line_number":  67
+                       },
+                       {
+                           "name":  "update_wrapper",
+                           "kind":  "function",
+                           "file_path":  ".venv\\Lib\\site-packages\\mako\\util.py",
+                           "line_number":  17
+                       },
+                       {
+                           "name":  "verify_matching_signatures",
+                           "kind":  "function",
+                           "file_path":  ".venv\\Lib\\site-packages\\numpy\\_core\\overrides.py",
+                           "line_number":  86
+                       },
+                       {
+                           "name":  "expect",
+                           "kind":  "function",
+                           "file_path":  ".venv\\Lib\\site-packages\\sqlalchemy\\sql\\coercions.py",
+                           "line_number":  314
+                       },
+                       {
+                           "name":  "arg_regex",
+                           "kind":  "function",
+                           "file_path":  ".venv\\Lib\\site-packages\\numpy\\distutils\\tests\\test_ccompiler_opt.py",
+                           "line_number":  144
+                       },
+                       {
+                           "name":  "check",
+                           "kind":  "function",
+                           "file_path":  ".venv\\Lib\\site-packages\\_pytest\\_py\\path.py",
+                           "line_number":  773
+                       },
+                       {
+                           "name":  "cpu_dispatch_names",
+                           "kind":  "function",
+                           "file_path":  ".venv\\Lib\\site-packages\\numpy\\distutils\\ccompiler_opt.py",
+                           "line_number":  2263
+                       },
+                       {
+                           "name":  "describe_token",
+                           "kind":  "function",
+                           "file_path":  ".venv\\Lib\\site-packages\\jinja2\\lexer.py",
+                           "line_number":  185
+                       },
+                       {
+                           "name":  "describe_token_expr",
+                           "kind":  "function",
+                           "file_path":  ".venv\\Lib\\site-packages\\jinja2\\lexer.py",
+                           "line_number":  193
+                       },
+                       {
+                           "name":  "get",
+                           "kind":  "service",
+                           "file_path":  "src\\mix_agent\\services\\prompt_store.py",
+                           "line_number":  85
+                       },
+                       {
+                           "name":  "getattr",
+                           "kind":  "db",
+                           "file_path":  ".venv\\Lib\\site-packages\\jinja2\\sandbox.py",
+                           "line_number":  314
+                       },
+                       {
+                           "name":  "inspect",
+                           "kind":  "function",
+                           "file_path":  ".venv\\Lib\\site-packages\\sqlalchemy\\inspection.py",
+                           "line_number":  114
+                       },
+                       {
+                           "name":  "isinstance",
+                           "kind":  "function",
+                           "file_path":  ".venv\\Lib\\site-packages\\sqlalchemy\\sql\\base.py",
+                           "line_number":  955
+                       },
+                       {
+                           "name":  "join",
+                           "kind":  "function",
+                           "file_path":  ".venv\\Lib\\site-packages\\_pytest\\_py\\path.py",
+                           "line_number":  719
+                       },
+                       {
+                           "name":  "len",
+                           "kind":  "function",
+                           "file_path":  ".venv\\Lib\\site-packages\\requests_toolbelt\\multipart\\encoder.py",
+                           "line_number":  572
+                       },
+                       {
+                           "name":  "match",
+                           "kind":  "function",
+                           "file_path":  ".venv\\Lib\\site-packages\\_pytest\\_code\\code.py",
+                           "line_number":  768
+                       },
+                       {
+                           "name":  "next",
+                           "kind":  "db",
+                           "file_path":  ".venv\\Lib\\site-packages\\requests\\models.py",
+                           "line_number":  890
+                       },
+                       {
+                           "name":  "nopt",
+                           "kind":  "function",
+                           "file_path":  ".venv\\Lib\\site-packages\\numpy\\distutils\\tests\\test_ccompiler_opt.py",
+                           "line_number":  85
+                       },
+                       {
+                           "name":  "raise_syntax_error",
+                           "kind":  "function",
+                           "file_path":  ".venv\\Lib\\site-packages\\packaging\\_tokenizer.py",
+                           "line_number":  155
+                       },
+                       {
+                           "name":  "read",
+                           "kind":  "function",
+                           "file_path":  "src\\mix_agent\\agents\\agent_nodes\\auto_fix.py",
+                           "line_number":  43
+                       },
+                       {
+                           "name":  "test",
+                           "kind":  "function",
+                           "file_path":  ".venv\\Lib\\site-packages\\win32comext\\axdebug\\debugger.py",
+                           "line_number":  226
+                       }
+                   ],
+    "tables":  [
+
+               ],
+    "swimlane":  "flowchart LR\n    subgraph client[ð§ Client]\n        direction LR\n        CLIENT[\"POST /api/v1/proxy\"]\n    end\n    subgraph route[ð Route å±]\n        direction LR\n        proxy_request[\"proxy_request\"]\n    end\n    subgraph service[âï¸ Service å±]\n        direction LR\n        add[\"add\"]\n        get[\"get\"]\n    end\n    subgraph db[ðï¸ Database]\n        direction LR\n        getattr[\"getattr\"]\n        getattr[\"getattr\"]\n        next[\"next\"]\n    end\n    Any --\u003e any\n    CLIENT --\u003e proxy_request\n    CheckValue --\u003e TruncateToFourByteFloat\n    ToUnicode --\u003e append\n    TruncateToFourByteFloat --\u003e pack\n    add --\u003e getattr\n    any --\u003e array_function_dispatch\n    append --\u003e CheckValue\n    arg_regex --\u003e check\n    array_function_dispatch --\u003e add\n    b64encode --\u003e decode\n    check --\u003e cpu_dispatch_names\n    cpu_dispatch_names --\u003e describe_token\n    decode --\u003e ToUnicode\n    describe_token --\u003e describe_token_expr\n    describe_token_expr --\u003e get\n    expect --\u003e arg_regex\n    get --\u003e getattr\n    getattr --\u003e inspect\n    getattr --\u003e signature\n    inspect --\u003e isinstance\n    isinstance --\u003e join\n    join --\u003e len\n    len --\u003e match\n    match --\u003e next\n    next --\u003e nopt\n    nopt --\u003e raise_syntax_error\n    pack --\u003e Any\n    proxy_request --\u003e b64encode\n    raise_syntax_error --\u003e read\n    read --\u003e test\n    signature --\u003e update_wrapper\n    update_wrapper --\u003e verify_matching_signatures\n    verify_matching_signatures --\u003e expect",
+    "diagram_nodes":  [
+                          {
+                              "id":  "proxy_request",
+                              "name":  "proxy_request",
+                              "kind":  "route",
+                              "file_path":  "src\\mix_agent\\api\\v1_proxy.py",
+                              "line_number":  52
+                          },
+                          {
+                              "id":  "get",
+                              "name":  "get",
+                              "kind":  "service",
+                              "file_path":  "src\\mix_agent\\services\\prompt_store.py",
+                              "line_number":  85
+                          },
+                          {
+                              "id":  "b64encode",
+                              "name":  "b64encode",
+                              "kind":  "function",
+                              "file_path":  ".venv\\Lib\\site-packages\\sqlalchemy\\util\\compat.py",
+                              "line_number":  279
+                          },
+                          {
+                              "id":  "TruncateToFourByteFloat",
+                              "name":  "TruncateToFourByteFloat",
+                              "kind":  "function",
+                              "file_path":  ".venv\\Lib\\site-packages\\google\\protobuf\\internal\\type_checkers.py",
+                              "line_number":  36
+                          },
+                          {
+                              "id":  "arg_regex",
+                              "name":  "arg_regex",
+                              "kind":  "function",
+                              "file_path":  ".venv\\Lib\\site-packages\\numpy\\distutils\\tests\\test_ccompiler_opt.py",
+                              "line_number":  144
+                          },
+                          {
+                              "id":  "array_function_dispatch",
+                              "name":  "array_function_dispatch",
+                              "kind":  "function",
+                              "file_path":  ".venv\\Lib\\site-packages\\numpy\\_core\\overrides.py",
+                              "line_number":  108
+                          },
+                          {
+                              "id":  "append",
+                              "name":  "append",
+                              "kind":  "function",
+                              "file_path":  ".venv\\Lib\\site-packages\\_pytest\\junitxml.py",
+                              "line_number":  97
+                          },
+                          {
+                              "id":  "nopt",
+                              "name":  "nopt",
+                              "kind":  "function",
+                              "file_path":  ".venv\\Lib\\site-packages\\numpy\\distutils\\tests\\test_ccompiler_opt.py",
+                              "line_number":  85
+                          },
+                          {
+                              "id":  "decode",
+                              "name":  "decode",
+                              "kind":  "function",
+                              "file_path":  ".venv\\Lib\\site-packages\\websockets\\extensions\\permessage_deflate.py",
+                              "line_number":  92
+                          },
+                          {
+                              "id":  "any",
+                              "name":  "any",
+                              "kind":  "function",
+                              "file_path":  ".venv\\Lib\\site-packages\\sqlalchemy\\sql\\sqltypes.py",
+                              "line_number":  3066
+                          },
+                          {
+                              "id":  "raise_syntax_error",
+                              "name":  "raise_syntax_error",
+                              "kind":  "function",
+                              "file_path":  ".venv\\Lib\\site-packages\\packaging\\_tokenizer.py",
+                              "line_number":  155
+                          },
+                          {
+                              "id":  "CheckValue",
+                              "name":  "CheckValue",
+                              "kind":  "function",
+                              "file_path":  ".venv\\Lib\\site-packages\\google\\protobuf\\internal\\type_checkers.py",
+                              "line_number":  297
+                          },
+                          {
+                              "id":  "inspect",
+                              "name":  "inspect",
+                              "kind":  "function",
+                              "file_path":  ".venv\\Lib\\site-packages\\sqlalchemy\\inspection.py",
+                              "line_number":  114
+                          },
+                          {
+                              "id":  "pack",
+                              "name":  "pack",
+                              "kind":  "function",
+                              "file_path":  ".venv\\Lib\\site-packages\\redis\\connection.py",
+                              "line_number":  94
+                          },
+                          {
+                              "id":  "ToUnicode",
+                              "name":  "ToUnicode",
+                              "kind":  "function",
+                              "file_path":  ".venv\\Lib\\site-packages\\idna\\compat.py",
+                              "line_number":  19
+                          },
+                          {
+                              "id":  "Any",
+                              "name":  "Any",
+                              "kind":  "function",
+                              "file_path":  ".venv\\Lib\\site-packages\\sqlalchemy\\dialects\\postgresql\\array.py",
+                              "line_number":  50
+                          },
+                          {
+                              "id":  "expect",
+                              "name":  "expect",
+                              "kind":  "function",
+                              "file_path":  ".venv\\Lib\\site-packages\\sqlalchemy\\sql\\coercions.py",
+                              "line_number":  314
+                          },
+                          {
+                              "id":  "getattr",
+                              "name":  "getattr",
+                              "kind":  "db",
+                              "file_path":  ".venv\\Lib\\site-packages\\jinja2\\sandbox.py",
+                              "line_number":  314
+                          },
+                          {
+                              "id":  "read",
+                              "name":  "read",
+                              "kind":  "function",
+                              "file_path":  "src\\mix_agent\\agents\\agent_nodes\\auto_fix.py",
+                              "line_number":  43
+                          },
+                          {
+                              "id":  "check",
+                              "name":  "check",
+                              "kind":  "function",
+                              "file_path":  ".venv\\Lib\\site-packages\\_pytest\\_py\\path.py",
+                              "line_number":  773
+                          },
+                          {
+                              "id":  "describe_token_expr",
+                              "name":  "describe_token_expr",
+                              "kind":  "function",
+                              "file_path":  ".venv\\Lib\\site-packages\\jinja2\\lexer.py",
+                              "line_number":  193
+                          },
+                          {
+                              "id":  "match",
+                              "name":  "match",
+                              "kind":  "function",
+                              "file_path":  ".venv\\Lib\\site-packages\\_pytest\\_code\\code.py",
+                              "line_number":  768
+                          },
+                          {
+                              "id":  "cpu_dispatch_names",
+                              "name":  "cpu_dispatch_names",
+                              "kind":  "function",
+                              "file_path":  ".venv\\Lib\\site-packages\\numpy\\distutils\\ccompiler_opt.py",
+                              "line_number":  2263
+                          },
+                          {
+                              "id":  "verify_matching_signatures",
+                              "name":  "verify_matching_signatures",
+                              "kind":  "function",
+                              "file_path":  ".venv\\Lib\\site-packages\\numpy\\_core\\overrides.py",
+                              "line_number":  86
+                          },
+                          {
+                              "id":  "join",
+                              "name":  "join",
+                              "kind":  "function",
+                              "file_path":  ".venv\\Lib\\site-packages\\_pytest\\_py\\path.py",
+                              "line_number":  719
+                          },
+                          {
+                              "id":  "test",
+                              "name":  "test",
+                              "kind":  "function",
+                              "file_path":  ".venv\\Lib\\site-packages\\win32comext\\axdebug\\debugger.py",
+                              "line_number":  226
+                          },
+                          {
+                              "id":  "update_wrapper",
+                              "name":  "update_wrapper",
+                              "kind":  "function",
+                              "file_path":  ".venv\\Lib\\site-packages\\mako\\util.py",
+                              "line_number":  17
+                          },
+                          {
+                              "id":  "isinstance",
+                              "name":  "isinstance",
+                              "kind":  "function",
+                              "file_path":  ".venv\\Lib\\site-packages\\sqlalchemy\\sql\\base.py",
+                              "line_number":  955
+                          },
+                          {
+                              "id":  "signature",
+                              "name":  "signature",
+                              "kind":  "function",
+                              "file_path":  ".venv\\Lib\\site-packages\\_pytest\\compat.py",
+                              "line_number":  67
+                          },
+                          {
+                              "id":  "next",
+                              "name":  "next",
+                              "kind":  "db",
+                              "file_path":  ".venv\\Lib\\site-packages\\requests\\models.py",
+                              "line_number":  890
+                          },
+                          {
+                              "id":  "describe_token",
+                              "name":  "describe_token",
+                              "kind":  "function",
+                              "file_path":  ".venv\\Lib\\site-packages\\jinja2\\lexer.py",
+                              "line_number":  185
+                          },
+                          {
+                              "id":  "len",
+                              "name":  "len",
+                              "kind":  "function",
+                              "file_path":  ".venv\\Lib\\site-packages\\requests_toolbelt\\multipart\\encoder.py",
+                              "line_number":  572
+                          },
+                          {
+                              "id":  "add",
+                              "name":  "add",
+                              "kind":  "service",
+                              "file_path":  "src\\mix_agent\\services\\prompt_store.py",
+                              "line_number":  128
+                          }
+                      ],
+    "diagram_edges":  [
+                          {
+                              "from":  "Any",
+                              "to":  "any"
+                          },
+                          {
+                              "from":  "CLIENT",
+                              "to":  "proxy_request"
+                          },
+                          {
+                              "from":  "CheckValue",
+                              "to":  "TruncateToFourByteFloat"
+                          },
+                          {
+                              "from":  "ToUnicode",
+                              "to":  "append"
+                          },
+                          {
+                              "from":  "TruncateToFourByteFloat",
+                              "to":  "pack"
+                          },
+                          {
+                              "from":  "add",
+                              "to":  "getattr"
+                          },
+                          {
+                              "from":  "any",
+                              "to":  "array_function_dispatch"
+                          },
+                          {
+                              "from":  "append",
+                              "to":  "CheckValue"
+                          },
+                          {
+                              "from":  "arg_regex",
+                              "to":  "check"
+                          },
+                          {
+                              "from":  "array_function_dispatch",
+                              "to":  "add"
+                          },
+                          {
+                              "from":  "b64encode",
+                              "to":  "decode"
+                          },
+                          {
+                              "from":  "check",
+                              "to":  "cpu_dispatch_names"
+                          },
+                          {
+                              "from":  "cpu_dispatch_names",
+                              "to":  "describe_token"
+                          },
+                          {
+                              "from":  "decode",
+                              "to":  "ToUnicode"
+                          },
+                          {
+                              "from":  "describe_token",
+                              "to":  "describe_token_expr"
+                          },
+                          {
+                              "from":  "describe_token_expr",
+                              "to":  "get"
+                          },
+                          {
+                              "from":  "expect",
+                              "to":  "arg_regex"
+                          },
+                          {
+                              "from":  "get",
+                              "to":  "getattr"
+                          },
+                          {
+                              "from":  "getattr",
+                              "to":  "inspect"
+                          },
+                          {
+                              "from":  "getattr",
+                              "to":  "signature"
+                          },
+                          {
+                              "from":  "inspect",
+                              "to":  "isinstance"
+                          },
+                          {
+                              "from":  "isinstance",
+                              "to":  "join"
+                          },
+                          {
+                              "from":  "join",
+                              "to":  "len"
+                          },
+                          {
+                              "from":  "len",
+                              "to":  "match"
+                          },
+                          {
+                              "from":  "match",
+                              "to":  "next"
+                          },
+                          {
+                              "from":  "next",
+                              "to":  "nopt"
+                          },
+                          {
+                              "from":  "nopt",
+                              "to":  "raise_syntax_error"
+                          },
+                          {
+                              "from":  "pack",
+                              "to":  "Any"
+                          },
+                          {
+                              "from":  "proxy_request",
+                              "to":  "b64encode"
+                          },
+                          {
+                              "from":  "raise_syntax_error",
+                              "to":  "read"
+                          },
+                          {
+                              "from":  "read",
+                              "to":  "test"
+                          },
+                          {
+                              "from":  "signature",
+                              "to":  "update_wrapper"
+                          },
+                          {
+                              "from":  "update_wrapper",
+                              "to":  "verify_matching_signatures"
+                          },
+                          {
+                              "from":  "verify_matching_signatures",
+                              "to":  "expect"
+                          }
+                      ],
+    "route_info":  {
+                       "method":  "POST",
+                       "path":  "/proxy",
+                       "handler":  "proxy_request",
+                       "file_path":  "src\\mix_agent\\api\\v1_proxy.py",
+                       "line_number":  52
+                   },
+    "error":  ""
+}

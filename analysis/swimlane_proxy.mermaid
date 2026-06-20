@@ -1,0 +1,10 @@
+﻿flowchart LR
+    subgraph client[ð§ Client]
+        direction LR
+        CLIENT["POST /api/v1/proxy"]
+    end
+    subgraph route[ð Route å±]
+        direction LR
+        proxy_request["proxy_request"]
+    end
+    CLIENT --> proxy_request
