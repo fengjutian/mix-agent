@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Body
 
-from mix_agent.tools.vcs.git_tool import GitTool
+from mix_agent.tools.vcs.git_tool import GitTool, ChangedFile, CommitDetail
+from mix_agent.services.llm import MODEL_REGISTRY
 
 router = APIRouter()
 
@@ -580,6 +581,165 @@ from pathlib import Path as _Path
 
 _CHECKLIST_PATH = _Path(__file__).resolve().parent.parent.parent.parent / "config" / "checklist_templates.json"
 _checklist_lock = _threading.Lock()
+
+
+# ═══════════════════════════════════════════════════════════
+# AI Multi-Commit Review
+# ═══════════════════════════════════════════════════════════
+
+
+_REVIEW_SYSTEM_PROMPT = """你是一个资深的代码审查专家。请对以下多个提交的代码变更进行全面的代码审查。
+
+请逐文件分析变更，关注以下方面：
+1. **安全性**: SQL注入、XSS、权限绕过、敏感信息泄露等
+2. **代码质量**: 可读性、可维护性、设计模式、命名规范
+3. **性能**: N+1查询、内存泄漏、大循环、不必要的计算
+4. **错误处理**: 异常捕获、错误日志、边界情况
+5. **逻辑正确性**: 潜在bug、竞态条件、类型安全
+6. **变更影响**: 对现有功能的影响，是否需要同步修改其他模块
+
+输出格式要求（Markdown）：
+```markdown
+# 代码审查报告
+
+## 概览
+- 审查提交数：{count}
+- 变更文件数：{files}
+- 审查时间：{time}
+
+## 高风险问题
+### [高危/中危/低危] 问题标题
+- **文件**: 文件路径 (行号)
+- **说明**: 问题描述
+- **建议**: 修复建议
+
+## 改进建议
+...
+
+## 总结
+总体评价和建议。
+```"""
+
+
+@router.post("/ai-review-commits")
+async def ai_review_commits(body: dict) -> dict:
+    """AI 评审多个提交的代码变更。
+
+    接收 commit SHAs 列表，收集每个 commit 的 diff，
+    调用 LLM 生成综合代码审查报告。
+
+    Request Body:
+        commit_shas: list[str] — 要评审的 commit SHA 列表
+        repo_path: str — 仓库路径（默认 ".")
+
+    Returns:
+        task_id: str — 异步任务 ID
+        status: str — 任务状态
+    """
+    from mix_agent.services.llm import llm_client
+
+    commit_shas: list[str] = body.get("commit_shas", [])
+    repo_path: str = body.get("repo_path", ".")
+
+    if not commit_shas:
+        raise HTTPException(status_code=400, detail="commit_shas is required")
+
+    git = _git(repo_path)
+
+    # ── 收集所有选中提交的信息和 diff ──
+    commit_infos: list[dict] = []
+    combined_diff_parts: list[str] = []
+    all_changed_files: dict[str, ChangedFile] = {}
+    total_additions = 0
+    total_deletions = 0
+
+    for sha in commit_shas:
+        try:
+            detail: CommitDetail = git.commit_detail(sha)
+            commit_infos.append({
+                "sha": detail.sha,
+                "short_sha": detail.short_sha,
+                "author": detail.author,
+                "date": detail.date,
+                "message": detail.message,
+            })
+            header = f"--- Commit {detail.short_sha}: {detail.message.split(chr(10))[0][:80]} ---\n"
+            combined_diff_parts.append(header + detail.raw_diff)
+            total_additions += detail.total_additions
+            total_deletions += detail.total_deletions
+            for cf in detail.changed_files:
+                key = cf.file_path
+                if key not in all_changed_files:
+                    all_changed_files[key] = cf
+        except (ValueError, RuntimeError) as e:
+            combined_diff_parts.append(f"--- Commit {sha[:8]}: failed to load ({e}) ---\n")
+
+    if not combined_diff_parts:
+        raise HTTPException(status_code=400, detail="No diff content found for the selected commits")
+
+    combined_diff = "\n\n".join(combined_diff_parts)
+    changed_files_list = [cf.to_dict() for cf in all_changed_files.values()]
+
+    # ── 构建 LLM 请求 ──
+    from datetime import datetime
+
+    user_message = f"""请审查以下 {len(commit_shas)} 个提交的代码变更。
+
+## 提交列表
+{chr(10).join(f"- [{c['short_sha']}] {c['message'][:100]}" for c in commit_infos)}
+
+## 变更统计
+- 修改文件数: {len(all_changed_files)}
+- 新增行数: {total_additions}
+- 删除行数: {total_deletions}
+
+## 变更详情 (Diff)
+```
+{combined_diff[:80000]}
+```
+"""  # 截断 diff 防止超出 token 限制
+
+    try:
+        # 尝试用任意可用的 provider
+        providers = list(MODEL_REGISTRY.keys())
+        if not providers:
+            return {
+                "ok": False,
+                "error": "No LLM provider configured. Please set up API keys in settings.",
+                "commit_infos": commit_infos,
+                "changed_files": changed_files_list,
+                "total_additions": total_additions,
+                "total_deletions": total_deletions,
+            }
+
+        provider = providers[0]
+        resp = await llm_client.chat(
+            provider=provider,
+            messages=[
+                {"role": "system", "content": _REVIEW_SYSTEM_PROMPT},
+                {"role": "user", "content": user_message},
+            ],
+            temperature=0.3,
+            max_tokens=4096,
+        )
+
+        return {
+            "ok": True,
+            "report": resp.content,
+            "commit_infos": commit_infos,
+            "changed_files": changed_files_list,
+            "total_additions": total_additions,
+            "total_deletions": total_deletions,
+            "model": resp.model,
+            "provider": resp.provider,
+            "tokens": {
+                "prompt": resp.prompt_tokens,
+                "completion": resp.completion_tokens,
+                "total": resp.prompt_tokens + resp.completion_tokens,
+            },
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI review failed: {e}")
 
 
 def _load_checklists() -> dict:
