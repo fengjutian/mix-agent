@@ -120,6 +120,7 @@ export default function ReviewPage() {
     model?: string;
     tokens?: { prompt: number; completion: number; total: number };
   } | null>(null);
+  const pendingExportUrl = useRef<string | null>(null);
 
   // ── Load branches ──
   const loadBranches = useCallback(async (caller = "") => {
@@ -794,7 +795,26 @@ export default function ReviewPage() {
       )}
 
       {/* ── AI Review Modal ── */}
-      <Dialog open={reviewModalOpen} onOpenChange={(open) => { setReviewModalOpen(open); if (!open) { setReviewReport(null); setReviewError(null); setReviewMeta(null); } }}>
+      <Dialog open={reviewModalOpen} onOpenChange={(open) => {
+        setReviewModalOpen(open);
+        if (!open) {
+          // If dialog closed for export, trigger download now (no modal lock)
+          if (pendingExportUrl.current) {
+            const url = pendingExportUrl.current;
+            pendingExportUrl.current = null;
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `ai-review-report-${new Date().toISOString().slice(0, 10)}.md`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(url), 5000);
+          }
+          setReviewReport(null);
+          setReviewError(null);
+          setReviewMeta(null);
+        }
+      }}>
         <DialogContent className="sm:max-w-[1100px] max-h-[85vh] overflow-hidden flex flex-col" style={{ maxWidth: "min(1100px, calc(100vw - 40px))", background: "rgba(24, 24, 34, 0.95)" }}>
           <DialogTitle style={{ fontSize: "1rem", fontWeight: 600, paddingRight: 24 }}>
             {reviewLoading ? "🤖 AI 评审中..." : "🤖 AI 代码审查报告"}
@@ -840,16 +860,33 @@ export default function ReviewPage() {
               <button
                 type="button"
                 className="group/button inline-flex shrink-0 items-center justify-center rounded-[min(var(--radius-md),12px)] border border-transparent bg-primary text-primary-foreground hover:bg-primary/80 h-7 gap-1 px-2.5 text-[0.8rem] font-medium cursor-pointer"
-                onClick={() => {
-                  const blob = new Blob([reviewReport], { type: "text/markdown;charset=utf-8" });
+                onClick={async () => {
+                  const content = reviewReport;
+                  const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
+                  const filename = `ai-review-report-${new Date().toISOString().slice(0, 10)}.md`;
+
+                  // Modern File System Access API (Chrome/Edge/Tauri WebView2)
+                  if ("showSaveFilePicker" in window) {
+                    try {
+                      const handle = await window.showSaveFilePicker({
+                        suggestedName: filename,
+                        types: [{ description: "Markdown", accept: { "text/markdown": [".md"] } }],
+                      });
+                      const writable = await handle.createWritable();
+                      await writable.write(blob);
+                      await writable.close();
+                    } catch (err: any) {
+                      if (err?.name !== "AbortError") {
+                        alert("保存失败: " + (err?.message || err));
+                      }
+                    }
+                    return;
+                  }
+
+                  // Fallback: close dialog, then download
                   const url = URL.createObjectURL(blob);
-                  const a = document.createElement("a");
-                  a.href = url;
-                  a.download = `ai-review-report-${new Date().toISOString().slice(0, 10)}.md`;
-                  document.body.appendChild(a);
-                  a.click();
-                  document.body.removeChild(a);
-                  setTimeout(() => URL.revokeObjectURL(url), 100);
+                  pendingExportUrl.current = url;
+                  setReviewModalOpen(false);
                 }}
               >
                 导出 Markdown
