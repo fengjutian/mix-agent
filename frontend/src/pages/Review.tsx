@@ -632,13 +632,14 @@ export default function ReviewPage() {
               </div>
               {fileContent ? (
                 <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
-                  <div id="blame-gutter" style={{ width: 200, minWidth: 200, overflow: "hidden", borderRight: "1px solid var(--border)",
+                  <div id="blame-gutter" style={{ width: 320, minWidth: 320, overflow: "hidden", borderRight: "1px solid var(--border)",
                     background: "var(--bg-surface)", fontFamily: "monospace", fontSize: 10, lineHeight: "18px" }}>
                     {blameLines.length > 0 ? blameLines.map((line) => (
-                      <div key={line.line_number} style={{ display: "flex", padding: "0 4px", height: 18, borderBottom: "1px solid rgba(255,255,255,0.02)" }}>
+                      <div key={line.line_number} style={{ display: "flex", padding: "0 4px", height: 18, borderBottom: "1px solid rgba(255,255,255,0.02)", gap: 4 }}>
                         <span style={{ fontWeight: 600, color: "var(--accent)", minWidth: 55, fontSize: 9 }}>{line.short_sha}</span>
-                        <span style={{ color: "var(--text-muted)", fontSize: 9, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-                          title={`${line.author} · ${line.date}`}>{line.author?.slice(0, 12)}</span>
+                        <span style={{ color: "var(--text-muted)", fontSize: 9, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}
+                          title={`${line.author} · ${line.date}`}>{line.author?.slice(0, 10)}</span>
+                        <span style={{ color: "var(--text-muted)", fontSize: 9, whiteSpace: "nowrap" }} title={line.date}>{line.date?.slice(0, 19).replace("T", " ")}</span>
                       </div>
                     )) : <div style={{ padding: "8px 4px", color: "var(--text-muted)", fontSize: 9 }}>加载 blame...</div>}
                   </div>
