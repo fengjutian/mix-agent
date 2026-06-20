@@ -653,7 +653,7 @@ export default function ReviewPage() {
                         <span style={{ fontWeight: 600, color: "var(--accent)", minWidth: 55, fontSize: 9 }}>{line.short_sha}</span>
                         <span style={{ color: "var(--text-muted)", fontSize: 9, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}
                           title={`${line.author} · ${line.date}`}>{line.author?.slice(0, 10)}</span>
-                        <span style={{ color: "var(--text-muted)", fontSize: 9, whiteSpace: "nowrap" }} title={line.date}>{line.date?.slice(0, 19).replace("T", " ")}</span>
+                        <span style={{ color: "var(--text-muted)", fontSize: 9, whiteSpace: "nowrap" }} title={line.date}>{line.date ? new Date(Number(line.date) * 1000).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).replace(/\//g, '-') : ''}</span>
                       </div>
                     )) : <div style={{ padding: "8px 4px", color: "var(--text-muted)", fontSize: 9 }}>加载 blame...</div>}
                   </div>
