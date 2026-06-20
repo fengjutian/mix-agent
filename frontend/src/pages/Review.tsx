@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Editor from "@monaco-editor/react";
+import ReactMarkdown from "react-markdown";
+import rehypeSanitize from "rehype-sanitize";
+import remarkGfm from "remark-gfm";
 import { MIX_AGENT_DARK, registerMixAgentTheme } from "../monacoTheme";
 import {
   listBranches,
@@ -14,12 +17,16 @@ import {
   searchCode,
   getChecklists,
   openInVSCode,
+  aiReviewCommits,
+  aiReviewResult,
 } from "../api/client";
 import DirectoryPicker from "../components/DirectoryPicker";
 import { Input } from "../components/ui/input";
 import { Checkbox, CheckboxIndicator } from "../components/ui/checkbox";
 import { Badge } from "../components/ui/badge";
 import { Select, SelectTrigger, SelectValue, SelectPopup, SelectItem } from "../components/ui/select";
+import { Dialog, DialogContent, DialogTitle, DialogClose } from "../components/ui/dialog";
+import { Button } from "../components/ui/button";
 
 type LeftTab = "tree" | "commits";
 type RightTab = "diff" | "file";
@@ -98,6 +105,21 @@ export default function ReviewPage() {
   // File history
   const [fileHistory, setFileHistory] = useState<Commit[]>([]);
   const [showFileHistory, setShowFileHistory] = useState("");
+
+  // ── Multi-commit selection & AI review ──
+  const [selectedCommits, setSelectedCommits] = useState<Set<string>>(new Set());
+  const [reviewModalOpen, setReviewModalOpen] = useState(false);
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [reviewReport, setReviewReport] = useState<string | null>(null);
+  const [reviewError, setReviewError] = useState<string | null>(null);
+  const [reviewMeta, setReviewMeta] = useState<{
+    commit_infos?: Array<{ sha: string; short_sha: string; author: string; message: string }>;
+    changed_files?: Array<{ file_path: string; change_type: string; additions: number; deletions: number }>;
+    total_additions?: number;
+    total_deletions?: number;
+    model?: string;
+    tokens?: { prompt: number; completion: number; total: number };
+  } | null>(null);
 
   // ── Load branches ──
   const loadBranches = useCallback(async (caller = "") => {
@@ -216,6 +238,66 @@ export default function ReviewPage() {
       const data = await listCommits({ file_path: fpath, max_count: 50, repo_path: repoPathRef.current });
       setFileHistory(data.commits);
     } catch { setFileHistory([]); }
+  };
+
+  // ── Multi-commit selection ──
+  const toggleCommitSelection = (sha: string) => {
+    setSelectedCommits(prev => {
+      const next = new Set(prev);
+      if (next.has(sha)) next.delete(sha); else next.add(sha);
+      return next;
+    });
+  };
+
+  const clearSelection = () => setSelectedCommits(new Set());
+
+  // ── AI Review handler (async: submit → poll) ──
+  const handleAiReview = async () => {
+    if (selectedCommits.size === 0) return;
+    setReviewModalOpen(true);
+    setReviewLoading(true);
+    setReviewReport(null);
+    setReviewError(null);
+    setReviewMeta(null);
+    try {
+      // 1) Submit review task
+      const { task_id } = await aiReviewCommits({
+        commit_shas: Array.from(selectedCommits),
+        repo_path: repoPathRef.current,
+      });
+
+      // 2) Poll for result (max 120s)
+      const deadline = Date.now() + 120_000;
+      while (Date.now() < deadline) {
+        await new Promise(r => setTimeout(r, 2000));  // 2s interval
+        const data = await aiReviewResult(task_id);
+        if (data.status === "processing") continue;
+
+        // Completed or failed
+        if (data.ok && data.report) {
+          setReviewReport(data.report);
+          setReviewMeta({
+            commit_infos: data.commit_infos,
+            changed_files: data.changed_files,
+            total_additions: data.total_additions,
+            total_deletions: data.total_deletions,
+            model: data.model,
+            tokens: data.tokens,
+          });
+        } else {
+          setReviewError(data.error || "AI 评审返回空结果");
+        }
+        setReviewLoading(false);
+        return;
+      }
+
+      // timeout
+      setReviewError("AI 评审超时（120s），请稍后重试或减少审查的提交数量");
+    } catch (e: any) {
+      setReviewError(e?.message || String(e));
+    } finally {
+      setReviewLoading(false);
+    }
   };
 
   // ── Load Checklist ──
@@ -442,21 +524,49 @@ export default function ReviewPage() {
           {/* Commits Tab */}
           {leftTab === "commits" && (
             <div style={{ flex: 1, overflow: "auto" }}>
-              <div style={{ padding: "6px 10px", borderBottom: "1px solid var(--border)", fontWeight: 600, fontSize: "0.8rem", display: "flex", justifyContent: "space-between" }}>
+              <div style={{ padding: "6px 10px", borderBottom: "1px solid var(--border)", fontWeight: 600, fontSize: "0.8rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span>提交 ({commits.length})</span>
-                {commitsLoading && <span style={{ color: "var(--text-muted)" }}>...</span>}
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  {commitsLoading && <span style={{ color: "var(--text-muted)", fontSize: "0.7rem" }}>...</span>}
+                  {selectedCommits.size > 0 && (
+                    <>
+                      <span style={{ fontSize: "0.7rem", color: "var(--accent)", fontWeight: 400 }}>
+                        已选 {selectedCommits.size}
+                      </span>
+                      <button className="btn btn--ghost btn--sm" onClick={clearSelection}
+                        style={{ fontSize: "0.65rem", padding: "1px 6px" }}>
+                        取消
+                      </button>
+                      <button onClick={handleAiReview}
+                        style={{ fontSize: "0.7rem", padding: "2px 10px", background: "var(--accent)", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer", whiteSpace: "nowrap" }}>
+                        🤖 AI 评审
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
               {commits.map((commit) => (
                 <div key={commit.sha} onClick={() => handleSelectCommit(commit)}
-                  style={{ padding: "8px 10px", cursor: "pointer", borderBottom: "1px solid var(--border)",
+                  style={{ padding: "8px 10px 8px 4px", cursor: "pointer", borderBottom: "1px solid var(--border)",
+                    display: "flex", alignItems: "flex-start", gap: 4,
                     background: selectedCommit?.sha === commit.sha ? "var(--bg-active)" : "transparent" }}>
-                  <div style={{ display: "flex", gap: 6, marginBottom: 2 }}>
-                    <Badge variant="info" className="font-mono text-[0.7rem]">{commit.short_sha}</Badge>
-                    {commit.refs.length > 0 && <Badge variant="warning" className="text-[0.6rem]">{commit.refs.join(", ")}</Badge>}
+                  <div style={{ paddingTop: 1, flexShrink: 0 }}>
+                    <Checkbox checked={selectedCommits.has(commit.sha)}
+                      onCheckedChange={() => toggleCommitSelection(commit.sha)}
+                      className="border-[var(--text-muted)] bg-[var(--bg-surface)] hover:border-[var(--accent)]"
+                      style={{ borderRadius: 3 }}>
+                      <CheckboxIndicator />
+                    </Checkbox>
                   </div>
-                  <div style={{ fontSize: "0.8rem", fontWeight: 500 }}>{commit.message}</div>
-                  <div style={{ fontSize: "0.68rem", color: "var(--text-muted)", display: "flex", justifyContent: "space-between" }}>
-                    <span>{commit.author}</span><span>{commit.date?.slice(0, 10)}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", gap: 6, marginBottom: 2 }}>
+                      <Badge variant="info" className="font-mono text-[0.7rem]">{commit.short_sha}</Badge>
+                      {commit.refs.length > 0 && <Badge variant="warning" className="text-[0.6rem]">{commit.refs.join(", ")}</Badge>}
+                    </div>
+                    <div style={{ fontSize: "0.8rem", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{commit.message}</div>
+                    <div style={{ fontSize: "0.68rem", color: "var(--text-muted)", display: "flex", justifyContent: "space-between" }}>
+                      <span>{commit.author}</span><span>{commit.date?.slice(0, 10)}</span>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -682,6 +792,72 @@ export default function ReviewPage() {
           ))}
         </div>
       )}
+
+      {/* ── AI Review Modal ── */}
+      <Dialog open={reviewModalOpen} onOpenChange={(open) => { setReviewModalOpen(open); if (!open) { setReviewReport(null); setReviewError(null); setReviewMeta(null); } }}>
+        <DialogContent className="sm:max-w-[1100px] max-h-[85vh] overflow-hidden flex flex-col" style={{ maxWidth: "min(1100px, calc(100vw - 40px))", background: "rgba(24, 24, 34, 0.95)" }}>
+          <DialogTitle style={{ fontSize: "1rem", fontWeight: 600, paddingRight: 24 }}>
+            {reviewLoading ? "🤖 AI 评审中..." : "🤖 AI 代码审查报告"}
+          </DialogTitle>
+          {reviewMeta && !reviewLoading && (
+            <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginBottom: 8, display: "flex", gap: 16, flexWrap: "wrap" }}>
+              <span>提交数: {reviewMeta.commit_infos?.length || 0}</span>
+              <span>文件数: {reviewMeta.changed_files?.length || 0}</span>
+              <span style={{ color: "var(--success)" }}>+{reviewMeta.total_additions || 0}</span>
+              <span style={{ color: "var(--danger)" }}>-{reviewMeta.total_deletions || 0}</span>
+              {reviewMeta.model && <span>模型: {reviewMeta.model}</span>}
+              {reviewMeta.tokens && <span>Token: {reviewMeta.tokens.total}</span>}
+            </div>
+          )}
+          <div style={{ flex: 1, overflow: "auto", padding: "8px 0", minHeight: 200 }}>
+            {reviewLoading && (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 40, gap: 12 }}>
+                <div style={{ width: 32, height: 32, border: "3px solid var(--border)", borderTopColor: "var(--accent)", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+                <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>正在分析代码变更，请稍候...</span>
+              </div>
+            )}
+            {reviewError && (
+              <div style={{ padding: 16, color: "var(--danger)", fontSize: "0.85rem" }}>
+                <div style={{ fontWeight: 600, marginBottom: 8 }}>❌ 评审失败</div>
+                <pre style={{ whiteSpace: "pre-wrap", fontFamily: "monospace", fontSize: "0.75rem", background: "rgba(255,0,0,0.05)", padding: 12, borderRadius: 6 }}>{reviewError}</pre>
+              </div>
+            )}
+            {reviewReport && !reviewLoading && (
+              <div className="markdown-body" style={{ fontSize: "0.82rem", lineHeight: 1.6 }}>
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  rehypePlugins={[rehypeSanitize]}
+                >
+                  {reviewReport}
+                </ReactMarkdown>
+              </div>
+            )}
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, borderTop: "1px solid var(--border)", paddingTop: 8, marginTop: 4 }}>
+            <DialogClose render={<Button variant="outline" size="sm" />}>关闭</DialogClose>
+            {reviewReport && (
+              <button
+                type="button"
+                className="group/button inline-flex shrink-0 items-center justify-center rounded-[min(var(--radius-md),12px)] border border-transparent bg-primary text-primary-foreground hover:bg-primary/80 h-7 gap-1 px-2.5 text-[0.8rem] font-medium cursor-pointer"
+                onClick={() => {
+                  const blob = new Blob([reviewReport], { type: "text/markdown;charset=utf-8" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = `ai-review-report-${new Date().toISOString().slice(0, 10)}.md`;
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  setTimeout(() => URL.revokeObjectURL(url), 100);
+                }}
+              >
+                导出 Markdown
+              </button>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

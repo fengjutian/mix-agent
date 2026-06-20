@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
+import time
+import uuid
+
 from fastapi import APIRouter, HTTPException, Query, Body
 
 from mix_agent.tools.vcs.git_tool import GitTool, ChangedFile, CommitDetail
@@ -587,6 +591,115 @@ _checklist_lock = _threading.Lock()
 # AI Multi-Commit Review
 # ═══════════════════════════════════════════════════════════
 
+# ── In-memory store for async review jobs ──
+_review_jobs: dict[str, dict] = {}
+_review_jobs_lock = asyncio.Lock()
+
+_REVIEW_JOB_TTL = 600  # auto-clean after 10 minutes
+
+
+async def _run_review_background(job_id: str, commit_shas: list[str], repo_path: str):
+    """后台执行 AI 审查，完成后写入 _review_jobs。"""
+    from mix_agent.services.llm import llm_client
+
+    try:
+        git = _git(repo_path)
+
+        commit_infos: list[dict] = []
+        combined_diff_parts: list[str] = []
+        all_changed_files: dict[str, ChangedFile] = {}
+        total_additions = 0
+        total_deletions = 0
+
+        for sha in commit_shas:
+            try:
+                detail: CommitDetail = git.commit_detail(sha)
+                commit_infos.append({
+                    "sha": detail.sha,
+                    "short_sha": detail.short_sha,
+                    "author": detail.author,
+                    "date": detail.date,
+                    "message": detail.message,
+                })
+                header = f"--- Commit {detail.short_sha}: {detail.message.split(chr(10))[0][:80]} ---\n"
+                combined_diff_parts.append(header + detail.raw_diff)
+                total_additions += detail.total_additions
+                total_deletions += detail.total_deletions
+                for cf in detail.changed_files:
+                    key = cf.file_path
+                    if key not in all_changed_files:
+                        all_changed_files[key] = cf
+            except (ValueError, RuntimeError) as e:
+                combined_diff_parts.append(f"--- Commit {sha[:8]}: failed to load ({e}) ---\n")
+
+        if not combined_diff_parts:
+            async with _review_jobs_lock:
+                _review_jobs[job_id] = {"status": "failed", "error": "No diff content found for the selected commits"}
+            return
+
+        combined_diff = "\n\n".join(combined_diff_parts)
+        changed_files_list = [cf.to_dict() for cf in all_changed_files.values()]
+
+        user_message = f"""请审查以下 {len(commit_shas)} 个提交的代码变更。
+
+## 提交列表
+{chr(10).join(f"- [{c['short_sha']}] {c['message'][:100]}" for c in commit_infos)}
+
+## 变更统计
+- 修改文件数: {len(all_changed_files)}
+- 新增行数: {total_additions}
+- 删除行数: {total_deletions}
+
+## 变更详情 (Diff)
+```
+{combined_diff[:80000]}
+```
+"""  # 截断 diff 防止超出 token 限制
+
+        providers = list(MODEL_REGISTRY.keys())
+        if not providers:
+            async with _review_jobs_lock:
+                _review_jobs[job_id] = {
+                    "status": "failed",
+                    "error": "No LLM provider configured. Please set up API keys in settings.",
+                    "commit_infos": commit_infos,
+                    "changed_files": changed_files_list,
+                    "total_additions": total_additions,
+                    "total_deletions": total_deletions,
+                }
+            return
+
+        provider = providers[0]
+        resp = await llm_client.chat(
+            provider=provider,
+            messages=[
+                {"role": "system", "content": _REVIEW_SYSTEM_PROMPT},
+                {"role": "user", "content": user_message},
+            ],
+            temperature=0.3,
+            max_tokens=4096,
+        )
+
+        async with _review_jobs_lock:
+            _review_jobs[job_id] = {
+                "status": "completed",
+                "report": resp.content,
+                "commit_infos": commit_infos,
+                "changed_files": changed_files_list,
+                "total_additions": total_additions,
+                "total_deletions": total_deletions,
+                "model": resp.model,
+                "provider": resp.provider,
+                "tokens": {
+                    "prompt": resp.prompt_tokens,
+                    "completion": resp.completion_tokens,
+                    "total": resp.prompt_tokens + resp.completion_tokens,
+                },
+            }
+    except Exception as e:
+        async with _review_jobs_lock:
+            _review_jobs[job_id] = {"status": "failed", "error": f"AI review failed: {e}"}
+
 
 _REVIEW_SYSTEM_PROMPT = """你是一个资深的代码审查专家。请对以下多个提交的代码变更进行全面的代码审查。
 
@@ -623,10 +736,10 @@ _REVIEW_SYSTEM_PROMPT = """你是一个资深的代码审查专家。请对以�
 
 @router.post("/ai-review-commits")
 async def ai_review_commits(body: dict) -> dict:
-    """AI 评审多个提交的代码变更。
+    """AI 评审多个提交的代码变更（异步）。
 
-    接收 commit SHAs 列表，收集每个 commit 的 diff，
-    调用 LLM 生成综合代码审查报告。
+    接收 commit SHAs 列表，后台执行 LLM 审查，
+    返回 task_id 供前端轮询。
 
     Request Body:
         commit_shas: list[str] — 要评审的 commit SHA 列表
@@ -634,112 +747,65 @@ async def ai_review_commits(body: dict) -> dict:
 
     Returns:
         task_id: str — 异步任务 ID
-        status: str — 任务状态
+        status: str — "processing"
     """
-    from mix_agent.services.llm import llm_client
-
     commit_shas: list[str] = body.get("commit_shas", [])
     repo_path: str = body.get("repo_path", ".")
 
     if not commit_shas:
         raise HTTPException(status_code=400, detail="commit_shas is required")
 
-    git = _git(repo_path)
+    job_id = uuid.uuid4().hex[:12]
+    async with _review_jobs_lock:
+        _review_jobs[job_id] = {"status": "processing", "created_at": time.time()}
 
-    # ── 收集所有选中提交的信息和 diff ──
-    commit_infos: list[dict] = []
-    combined_diff_parts: list[str] = []
-    all_changed_files: dict[str, ChangedFile] = {}
-    total_additions = 0
-    total_deletions = 0
+    asyncio.create_task(_run_review_background(job_id, commit_shas, repo_path))
 
-    for sha in commit_shas:
-        try:
-            detail: CommitDetail = git.commit_detail(sha)
-            commit_infos.append({
-                "sha": detail.sha,
-                "short_sha": detail.short_sha,
-                "author": detail.author,
-                "date": detail.date,
-                "message": detail.message,
-            })
-            header = f"--- Commit {detail.short_sha}: {detail.message.split(chr(10))[0][:80]} ---\n"
-            combined_diff_parts.append(header + detail.raw_diff)
-            total_additions += detail.total_additions
-            total_deletions += detail.total_deletions
-            for cf in detail.changed_files:
-                key = cf.file_path
-                if key not in all_changed_files:
-                    all_changed_files[key] = cf
-        except (ValueError, RuntimeError) as e:
-            combined_diff_parts.append(f"--- Commit {sha[:8]}: failed to load ({e}) ---\n")
+    return {"task_id": job_id, "status": "processing"}
 
-    if not combined_diff_parts:
-        raise HTTPException(status_code=400, detail="No diff content found for the selected commits")
 
-    combined_diff = "\n\n".join(combined_diff_parts)
-    changed_files_list = [cf.to_dict() for cf in all_changed_files.values()]
+@router.get("/ai-review-result/{task_id}")
+async def ai_review_result(task_id: str) -> dict:
+    """查询 AI 审查异步任务的结果。
 
-    # ── 构建 LLM 请求 ──
-    from datetime import datetime
+    Returns:
+        status: "processing" | "completed" | "failed"
+        report / error / commit_infos / ... — 完成时返回
+    """
+    async with _review_jobs_lock:
+        job = _review_jobs.get(task_id)
 
-    user_message = f"""请审查以下 {len(commit_shas)} 个提交的代码变更。
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"Task not found: {task_id}")
 
-## 提交列表
-{chr(10).join(f"- [{c['short_sha']}] {c['message'][:100]}" for c in commit_infos)}
+    if job["status"] == "processing":
+        return {"ok": True, "status": "processing"}
 
-## 变更统计
-- 修改文件数: {len(all_changed_files)}
-- 新增行数: {total_additions}
-- 删除行数: {total_deletions}
-
-## 变更详情 (Diff)
-```
-{combined_diff[:80000]}
-```
-"""  # 截断 diff 防止超出 token 限制
-
-    try:
-        # 尝试用任意可用的 provider
-        providers = list(MODEL_REGISTRY.keys())
-        if not providers:
-            return {
-                "ok": False,
-                "error": "No LLM provider configured. Please set up API keys in settings.",
-                "commit_infos": commit_infos,
-                "changed_files": changed_files_list,
-                "total_additions": total_additions,
-                "total_deletions": total_deletions,
-            }
-
-        provider = providers[0]
-        resp = await llm_client.chat(
-            provider=provider,
-            messages=[
-                {"role": "system", "content": _REVIEW_SYSTEM_PROMPT},
-                {"role": "user", "content": user_message},
-            ],
-            temperature=0.3,
-            max_tokens=4096,
-        )
-
+    if job["status"] == "failed":
+        # Clean expired jobs (best-effort)
         return {
-            "ok": True,
-            "report": resp.content,
-            "commit_infos": commit_infos,
-            "changed_files": changed_files_list,
-            "total_additions": total_additions,
-            "total_deletions": total_deletions,
-            "model": resp.model,
-            "provider": resp.provider,
-            "tokens": {
-                "prompt": resp.prompt_tokens,
-                "completion": resp.completion_tokens,
-                "total": resp.prompt_tokens + resp.completion_tokens,
-            },
+            "ok": False,
+            "status": "failed",
+            "error": job.get("error", "Unknown error"),
+            "commit_infos": job.get("commit_infos"),
+            "changed_files": job.get("changed_files"),
+            "total_additions": job.get("total_additions"),
+            "total_deletions": job.get("total_deletions"),
         }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"AI review failed: {e}")
+
+    # completed
+    return {
+        "ok": True,
+        "status": "completed",
+        "report": job.get("report"),
+        "commit_infos": job.get("commit_infos"),
+        "changed_files": job.get("changed_files"),
+        "total_additions": job.get("total_additions"),
+        "total_deletions": job.get("total_deletions"),
+        "model": job.get("model"),
+        "provider": job.get("provider"),
+        "tokens": job.get("tokens"),
+    }
 
 
 def _load_checklists() -> dict:

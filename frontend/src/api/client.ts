@@ -1,13 +1,17 @@
 const BASE = "http://localhost:8000/api/v1";
 
-async function request<T>(path: string, opts?: RequestInit): Promise<T> {
+async function request<T>(
+  path: string,
+  opts?: RequestInit & { timeoutSeconds?: number }
+): Promise<T> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(opts?.headers as Record<string, string> || {}),
   };
 
+  const timeoutSeconds = opts?.timeoutSeconds ?? 30;
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 30_000);
+  const timeoutId = setTimeout(() => controller.abort(), timeoutSeconds * 1000);
   try {
     const res = await fetch(`${BASE}${path}`, {
       ...opts,
@@ -22,7 +26,11 @@ async function request<T>(path: string, opts?: RequestInit): Promise<T> {
     return res.json();
   } catch (e: any) {
     if (e.name === "AbortError") {
-      throw new Error("请求超时（30s），请检查后端服务是否运行");
+      throw new Error(
+        timeoutSeconds >= 60
+          ? `请求超时（${timeoutSeconds}s），AI 调用可能仍在执行中，请稍后重试`
+          : `请求超时（${timeoutSeconds}s），请检查后端服务是否运行`
+      );
     }
     throw e;
   } finally {
@@ -636,6 +644,45 @@ export function openInVSCode(file_path: string, repo_path?: string) {
     `/review/open-in-vscode?${qs.toString()}`,
     { method: "POST" }
   );
+}
+
+// ── AI Multi-Commit Review ──
+
+export function aiReviewCommits(body: {
+  commit_shas: string[];
+  repo_path?: string;
+}) {
+  return request<{ task_id: string; status: string }>("/review/ai-review-commits", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function aiReviewResult(taskId: string) {
+  return request<{
+    ok: boolean;
+    status: string;
+    report?: string;
+    commit_infos?: Array<{
+      sha: string;
+      short_sha: string;
+      author: string;
+      date: string;
+      message: string;
+    }>;
+    changed_files?: Array<{
+      file_path: string;
+      change_type: string;
+      additions: number;
+      deletions: number;
+    }>;
+    total_additions?: number;
+    total_deletions?: number;
+    model?: string;
+    provider?: string;
+    tokens?: { prompt: number; completion: number; total: number };
+    error?: string;
+  }>(`/review/ai-review-result/${taskId}`);
 }
 
 // ── Review Checklists ──
