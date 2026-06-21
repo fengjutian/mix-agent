@@ -771,6 +771,7 @@ export interface AiTraceRequestBody {
 
 export interface AiTraceResult {
   ok: boolean;
+  record_id: string;
   ai_swimlane: string;
   ai_summary: string;
   call_chain: Array<{
@@ -815,6 +816,48 @@ export function aiAnalyzeRequest(body: AiTraceRequestBody) {
   });
 }
 
+// ── AI Trace History ──
+
+export interface TraceHistoryItem {
+  id: string;
+  method: string;
+  url: string;
+  source_root: string | null;
+  created_at: string | null;
+}
+
+export interface TraceHistoryList {
+  ok: boolean;
+  items: TraceHistoryItem[];
+  total: number;
+}
+
+export interface TraceHistoryDetail {
+  ok: boolean;
+  id: string;
+  method: string;
+  url: string;
+  source_root: string | null;
+  result: AiTraceResult | null;
+  created_at: string | null;
+}
+
+export function listTraceHistory(limit = 20, offset = 0) {
+  return request<TraceHistoryList>(`/analyzer/trace-history?limit=${limit}&offset=${offset}`);
+}
+
+export function getTraceHistory(recordId: string) {
+  return request<TraceHistoryDetail>(`/analyzer/trace-history/${recordId}`);
+}
+
+export function deleteTraceHistory(recordId: string) {
+  return request<{ ok: boolean }>(`/analyzer/trace-history/${recordId}`, { method: "DELETE" });
+}
+
+export function clearTraceHistory() {
+  return request<{ ok: boolean; deleted: number }>("/analyzer/trace-history", { method: "DELETE" });
+}
+
 // ── Global Settings ──
 
 export function getGlobalSettings() {
@@ -829,6 +872,7 @@ export function getGlobalSettings() {
       sqlguard_block_ddl: boolean;
       sqlguard_block_unconditional_dml: boolean;
       agent_max_concurrency: number;
+      default_project_dir: string;
     };
     updated_at: string | null;
   }>("/admin/settings");

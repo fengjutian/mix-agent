@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, Fragment } from "react";
-import { sendProxyRequest, aiAnalyzeRequest, listProjectDirs, type ProxyResponseBody, type AiTraceResult } from "../api/client";
+import { sendProxyRequest, aiAnalyzeRequest, listProjectDirs, getGlobalSettings, updateGlobalSettings, listTraceHistory, getTraceHistory, deleteTraceHistory, clearTraceHistory, type ProxyResponseBody, type AiTraceResult, type TraceHistoryItem } from "../api/client";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import mermaid from "mermaid";
 import { Tabs, TabsList, TabsTab, TabsPanel } from "../components/ui/tabs";
 import { Select, SelectTrigger, SelectValue, SelectPopup, SelectItem, SelectItemIndicator } from "../components/ui/select";
@@ -14,7 +15,6 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { cn } from "../lib/utils";
 
-// Initialize mermaid
 mermaid.initialize({
   startOnLoad: false,
   theme: "default",
@@ -349,6 +349,21 @@ export default function ApiClientPage() {
   const [respTab, setRespTab] = useState("body");
   const [bodyViewMode, setBodyViewMode] = useState<"pretty" | "raw" | "preview">("pretty");
 
+  // ── Global settings (project dir) ──
+  const queryClient = useQueryClient();
+  const settingsQ = useQuery({ queryKey: ["global-settings"], queryFn: getGlobalSettings });
+  const settingsMutation = useMutation({
+    mutationFn: updateGlobalSettings,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["global-settings"] }),
+  });
+  const globalProjectDir = settingsQ.data?.data?.default_project_dir ?? ".";
+  const setGlobalProjectDir = useCallback((dir: string) => {
+    settingsMutation.mutate({ default_project_dir: dir });
+  }, [settingsMutation]);
+  // Local draft for typing responsiveness
+  const [projectDirDraft, setProjectDirDraft] = useState(globalProjectDir);
+  useEffect(() => { setProjectDirDraft(globalProjectDir); }, [globalProjectDir]);
+
   // ── AI Analysis modal ──
   const [aiModalOpen, setAiModalOpen] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
@@ -356,11 +371,20 @@ export default function ApiClientPage() {
   const [aiError, setAiError] = useState("");
   const [aiSvg, setAiSvg] = useState<string | null>(null);
   const [aiSvgError, setAiSvgError] = useState("");
-  const [aiProjectDir, setAiProjectDir] = useState(".");
   const [aiDirList, setAiDirList] = useState<Array<{ name: string; path: string; relative: string }>>([]);
   const [aiDirParents, setAiDirParents] = useState<Array<{ name: string; path: string; relative: string }>>([]);
   const [aiDirShow, setAiDirShow] = useState(false);
   const [expandedCodeRow, setExpandedCodeRow] = useState<number | null>(null);
+  // 历史记录（从服务端 SQLite 加载）
+  const [aiHistory, setAiHistory] = useState<TraceHistoryItem[]>([]);
+  const [aiViewingHistoryId, setAiViewingHistoryId] = useState<string | null>(null);
+
+  const loadAiHistory = useCallback(async () => {
+    try {
+      const res = await listTraceHistory(20, 0);
+      if (res.ok) setAiHistory(res.items);
+    } catch { /* 静默失败 */ }
+  }, []);
 
   const browseProjectDir = useCallback(async (dirPath: string) => {
     try {
@@ -369,10 +393,10 @@ export default function ApiClientPage() {
         setAiDirList(res.dirs);
         setAiDirParents(res.parents);
         setAiDirShow(true);
-        setAiProjectDir(res.current);
+        setGlobalProjectDir(res.current);
       }
     } catch { /* ignore */ }
-  }, []);
+  }, [setGlobalProjectDir]);
 
   // Render mermaid when AI result changes
   useEffect(() => {
@@ -400,18 +424,24 @@ export default function ApiClientPage() {
       setAiError("");
     }
     setAiResult(null);
+    setAiViewingHistoryId(null);
     setAiSvg(null);
     setAiSvgError("");
+    loadAiHistory();
     setAiModalOpen(true);
-  }, [req.url]);
+  }, [req.url, loadAiHistory]);
 
   const startAiAnalyze = useCallback(async () => {
     if (!req.url.trim()) {
       setAiError("请先输入 URL");
       return;
     }
+    // 保存当前结果已在服务端自动完成，这里清空重来
+    setAiViewingHistoryId(null);
     setAiLoading(true);
     setAiResult(null);
+    setAiSvg(null);
+    setAiSvgError("");
     setAiError("");
     try {
       const result = await aiAnalyzeRequest({
@@ -421,16 +451,49 @@ export default function ApiClientPage() {
           req.headers.filter(h => h.enabled && h.key.trim()).map(h => [h.key.trim(), h.value])
         ),
         body: req.body,
-        source_root: aiProjectDir,
+        source_root: globalProjectDir,
       });
       setAiResult(result);
       if (!result.ok) setAiError(result.error || "分析失败");
+      // 刷新历史列表
+      await loadAiHistory();
     } catch (e: any) {
       setAiError(e.message || "AI 分析请求失败");
     } finally {
       setAiLoading(false);
     }
-  }, [req.method, req.url, req.headers, req.body, aiProjectDir]);
+  }, [req.method, req.url, req.headers, req.body, globalProjectDir, loadAiHistory]);
+
+  // 查看某条历史记录
+  const viewHistoryEntry = useCallback(async (entry: TraceHistoryItem) => {
+    try {
+      const res = await getTraceHistory(entry.id);
+      if (res.ok && res.result) {
+        setAiResult(res.result);
+        setAiViewingHistoryId(entry.id);
+        setAiSvg(null);
+        setAiSvgError("");
+        setAiError("");
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  // 清空所有历史
+  const clearHistory = useCallback(async () => {
+    await clearTraceHistory();
+    setAiHistory([]);
+  }, []);
+
+  // 删除单条历史
+  const deleteHistoryEntry = useCallback(async (id: string) => {
+    await deleteTraceHistory(id);
+    if (aiViewingHistoryId === id) {
+      setAiViewingHistoryId(null);
+      setAiResult(null);
+      setAiSvg(null);
+    }
+    setAiHistory(prev => prev.filter(e => e.id !== id));
+  }, [aiViewingHistoryId]);
 
   // ── Tab operations ──
   const addTab = useCallback(() => {
@@ -825,6 +888,34 @@ export default function ApiClientPage() {
             <TabBar tabs={tabs} activeId={activeTabId}
               onSelect={setActiveTabId} onClose={closeTab} onAdd={addTab} />
 
+            {/* ── Global Project Directory Bar ── */}
+            <div className="relative flex items-center gap-2 rounded-lg border border-border bg-secondary/30 px-3 py-1.5 mb-3">
+              <span className="text-xs text-muted-foreground whitespace-nowrap">📁 项目目录</span>
+              <Input
+                value={projectDirDraft}
+                onChange={(e) => setProjectDirDraft(e.target.value)}
+                onBlur={() => { if (projectDirDraft !== globalProjectDir) setGlobalProjectDir(projectDirDraft); }}
+                onKeyDown={(e) => { if (e.key === "Enter") { setGlobalProjectDir(projectDirDraft); (e.target as HTMLInputElement).blur(); } }}
+                placeholder="."
+                className="flex-1 h-7 text-xs font-mono"
+              />
+              <Button size="icon-sm" variant="ghost" onClick={() => browseProjectDir(globalProjectDir)} title="浏览目录" className="shrink-0">📂</Button>
+              {aiDirShow && (aiDirParents.length > 0 || aiDirList.length > 0) && (
+                <div className="absolute top-full left-0 right-0 z-50 rounded-lg border border-border bg-card p-2 max-h-[200px] overflow-y-auto space-y-0.5 shadow-lg mt-1">
+                  {aiDirParents.map((d) => (
+                    <button key={d.path} onClick={() => browseProjectDir(d.path)}
+                      className="block w-full text-left px-2 py-1 rounded text-xs font-mono hover:bg-muted text-muted-foreground"
+                    >📁 ../{d.name}</button>
+                  ))}
+                  {aiDirList.map((d) => (
+                    <button key={d.path} onClick={() => { setGlobalProjectDir(d.relative); setProjectDirDraft(d.relative); setAiDirShow(false); }}
+                      className="block w-full text-left px-2 py-1 rounded text-xs font-mono hover:bg-muted"
+                    >📁 {d.name}</button>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* ── Request Builder Card ── */}
             <div className="rounded-xl border border-border bg-card p-4 mb-4">
               {/* Method + URL + Send row */}
@@ -1146,29 +1237,61 @@ export default function ApiClientPage() {
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto py-2 space-y-4">
-            {/* Project directory selector — always visible */}
-            {!aiLoading && !aiResult && !aiError && (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 rounded-lg border border-border bg-secondary/30 p-3">
-                  <span className="text-xs text-muted-foreground whitespace-nowrap">📁 项目目录</span>
-                  <Input value={aiProjectDir} onChange={(e) => { setAiProjectDir(e.target.value); setAiDirShow(false); }} placeholder="." className="flex-1 h-7 text-xs font-mono" />
-                  <Button size="icon-sm" variant="ghost" onClick={() => browseProjectDir(aiProjectDir)} title="浏览目录" className="shrink-0">📂</Button>
-                  <Button size="sm" onClick={startAiAnalyze} className="gap-1 text-xs">🚀 开始分析</Button>
-                </div>
-                {aiDirShow && (aiDirParents.length > 0 || aiDirList.length > 0) && (
-                  <div className="rounded-lg border border-border bg-card p-2 max-h-[200px] overflow-y-auto space-y-0.5">
-                    {aiDirParents.map((d) => (
-                      <button key={d.path} onClick={() => browseProjectDir(d.path)}
-                        className="block w-full text-left px-2 py-1 rounded text-xs font-mono hover:bg-muted text-muted-foreground"
-                      >📁 ../{d.name}</button>
+            {/* 历史记录 */}
+            {aiHistory.length > 0 && (
+              <Collapsible defaultOpen={!aiLoading && !aiResult}>
+                <CollapsibleTrigger className="text-xs font-semibold text-muted-foreground uppercase tracking-wider cursor-pointer hover:text-foreground block">
+                  📋 历史分析记录 ({aiHistory.length})
+                </CollapsibleTrigger>
+                <CollapsiblePanel>
+                  <div className="mt-1.5 space-y-1 max-h-[180px] overflow-y-auto pr-1">
+                    {aiHistory.map((entry) => (
+                      <div
+                        key={entry.id}
+                        className={cn(
+                          "flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs cursor-pointer transition-colors",
+                          aiViewingHistoryId === entry.id
+                            ? "border-primary/50 bg-primary/5"
+                            : "border-border bg-secondary/20 hover:bg-secondary/40"
+                        )}
+                      >
+                        <span
+                          className="flex-1 font-mono truncate"
+                          onClick={() => viewHistoryEntry(entry)}
+                          title={`${entry.method} ${entry.url}  —  ${entry.created_at || ""}`}
+                        >
+                          {entry.method} {entry.url.slice(0, 60)}
+                        </span>
+                        <span className="text-muted-foreground shrink-0">
+                          {entry.created_at ? new Date(entry.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}
+                        </span>
+                        <button
+                          className="shrink-0 text-muted-foreground hover:text-destructive ml-1"
+                          onClick={() => deleteHistoryEntry(entry.id)}
+                          title="删除此条记录"
+                        >
+                          ✕
+                        </button>
+                      </div>
                     ))}
-                    {aiDirList.map((d) => (
-                      <button key={d.path} onClick={() => { setAiProjectDir(d.relative); setAiDirShow(false); }}
-                        className="block w-full text-left px-2 py-1 rounded text-xs font-mono hover:bg-muted"
-                      >📁 {d.name}</button>
-                    ))}
+                    <div className="flex justify-end pt-1">
+                      <button
+                        className="text-[0.65rem] text-muted-foreground hover:text-destructive underline"
+                        onClick={clearHistory}
+                      >
+                        清空全部历史
+                      </button>
+                    </div>
                   </div>
-                )}
+                </CollapsiblePanel>
+              </Collapsible>
+            )}
+            {/* Initial — start analysis */}
+            {!aiLoading && !aiResult && !aiError && (
+              <div className="flex items-center gap-2 rounded-lg border border-border bg-secondary/30 p-3">
+                <span className="text-xs text-muted-foreground">📁 {globalProjectDir || "."}</span>
+                <div className="flex-1" />
+                <Button size="sm" onClick={startAiAnalyze} className="gap-1 text-xs">🚀 开始分析</Button>
               </div>
             )}
             {aiLoading && (
@@ -1179,27 +1302,10 @@ export default function ApiClientPage() {
             )}
             {!aiLoading && aiError && (
               <>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 rounded-lg border border-border bg-secondary/30 p-3">
-                    <span className="text-xs text-muted-foreground whitespace-nowrap">📁 项目目录</span>
-                    <Input value={aiProjectDir} onChange={(e) => { setAiProjectDir(e.target.value); setAiDirShow(false); }} placeholder="." className="flex-1 h-7 text-xs font-mono" />
-                    <Button size="icon-sm" variant="ghost" onClick={() => browseProjectDir(aiProjectDir)} title="浏览目录" className="shrink-0">📂</Button>
-                    <Button size="sm" onClick={startAiAnalyze} className="gap-1 text-xs">🔄 重试</Button>
-                  </div>
-                  {aiDirShow && (aiDirParents.length > 0 || aiDirList.length > 0) && (
-                    <div className="rounded-lg border border-border bg-card p-2 max-h-[200px] overflow-y-auto space-y-0.5">
-                      {aiDirParents.map((d) => (
-                        <button key={d.path} onClick={() => browseProjectDir(d.path)}
-                          className="block w-full text-left px-2 py-1 rounded text-xs font-mono hover:bg-muted text-muted-foreground"
-                        >📁 ../{d.name}</button>
-                      ))}
-                      {aiDirList.map((d) => (
-                        <button key={d.path} onClick={() => { setAiProjectDir(d.relative); setAiDirShow(false); }}
-                          className="block w-full text-left px-2 py-1 rounded text-xs font-mono hover:bg-muted"
-                        >📁 {d.name}</button>
-                      ))}
-                    </div>
-                  )}
+                <div className="flex items-center gap-2 rounded-lg border border-border bg-secondary/30 p-3">
+                  <span className="text-xs text-muted-foreground">📁 {globalProjectDir || "."}</span>
+                  <div className="flex-1" />
+                  <Button size="sm" onClick={startAiAnalyze} className="gap-1 text-xs">🔄 重试</Button>
                 </div>
                 <div className="rounded-lg bg-destructive/10 border border-destructive/30 text-destructive text-sm px-4 py-3">
                   {aiError}
@@ -1209,27 +1315,10 @@ export default function ApiClientPage() {
             {!aiLoading && aiResult && aiResult.ok && (
               <>
                 {/* Re-analyze bar */}
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 rounded-lg border border-border bg-secondary/30 p-2">
-                    <span className="text-xs text-muted-foreground whitespace-nowrap">📁</span>
-                    <Input value={aiProjectDir} onChange={(e) => { setAiProjectDir(e.target.value); setAiDirShow(false); }} placeholder="." className="flex-1 h-7 text-xs font-mono" />
-                    <Button size="icon-sm" variant="ghost" onClick={() => browseProjectDir(aiProjectDir)} title="浏览目录" className="shrink-0">📂</Button>
-                    <Button size="sm" variant="outline" onClick={startAiAnalyze} className="gap-1 text-xs">🔄 重新分析</Button>
-                  </div>
-                  {aiDirShow && (aiDirParents.length > 0 || aiDirList.length > 0) && (
-                    <div className="rounded-lg border border-border bg-card p-2 max-h-[200px] overflow-y-auto space-y-0.5">
-                      {aiDirParents.map((d) => (
-                        <button key={d.path} onClick={() => browseProjectDir(d.path)}
-                          className="block w-full text-left px-2 py-1 rounded text-xs font-mono hover:bg-muted text-muted-foreground"
-                        >📁 ../{d.name}</button>
-                      ))}
-                      {aiDirList.map((d) => (
-                        <button key={d.path} onClick={() => { setAiProjectDir(d.relative); setAiDirShow(false); }}
-                          className="block w-full text-left px-2 py-1 rounded text-xs font-mono hover:bg-muted"
-                        >📁 {d.name}</button>
-                      ))}
-                    </div>
-                  )}
+                <div className="flex items-center gap-2 rounded-lg border border-border bg-secondary/30 p-2">
+                  <span className="text-xs text-muted-foreground">📁 {globalProjectDir || "."}</span>
+                  <div className="flex-1" />
+                  <Button size="sm" variant="outline" onClick={startAiAnalyze} className="gap-1 text-xs">🔄 重新分析</Button>
                 </div>
                 {aiResult.ai_summary && (
                   <div className="rounded-lg border border-border bg-secondary/30 p-3">

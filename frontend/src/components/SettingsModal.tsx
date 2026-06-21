@@ -19,6 +19,7 @@ const SETTING_FIELDS: Array<{
   { key: "sqlguard_block_ddl", label: "阻断 DDL", hint: "是否阻断数据定义语句（DROP/ALTER/TRUNCATE）", type: "boolean" },
   { key: "sqlguard_block_unconditional_dml", label: "阻断无条件 DML", hint: "是否阻断无条件更新/删除", type: "boolean" },
   { key: "agent_max_concurrency", label: "Agent 最大并发", hint: "同时运行的最大 Agent 任务数", type: "number", min: 1, step: 1 },
+  { key: "default_project_dir", label: "默认项目目录", hint: "AI 分析等功能的默认项目根目录", type: "text" },
 ];
 
 interface Props {

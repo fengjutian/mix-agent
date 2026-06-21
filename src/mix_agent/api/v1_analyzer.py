@@ -12,6 +12,7 @@ from mix_agent.tools.parser.route_scanner import RouteScanner
 from mix_agent.tools.parser.call_chain import CallChainTracer
 from mix_agent.tools.parser.table_extractor import TableExtractor
 from mix_agent.tools.parser.swimlane_builder import build_swimlane
+from mix_agent.services.trace_store import trace_store
 
 router = APIRouter()
 
@@ -289,6 +290,8 @@ def trace_interface(
                 continue
             node = call_result.nodes.get(func_name, {})
             fp = node.get("file_path", "") if isinstance(node, dict) else ""
+            if _is_external_path(fp):
+                continue  # 过滤第三方库函数
             ln = node.get("line_number", 0) if isinstance(node, dict) else 0
             code = _read_function_code(func_name, fp, source_root) if fp else ""
             chain_nodes.append(NodeInfo(
@@ -337,12 +340,30 @@ def trace_interface(
 # ── AI 增强调用链分析 ──
 
 
+# 第三方/系统路径黑名单 — 这些路径中的函数不应出现在调用链分析中
+_EXTERNAL_PATH_MARKERS = (
+    ".venv", "venv", "site-packages", "__pycache__",
+    "Lib/", "lib/python", "Python3", "Python",
+    "google/protobuf", "idna/", "websockets/",
+)
+
+
+def _is_external_path(file_path: str) -> bool:
+    """判断文件路径是否属于第三方库或系统路径，应被过滤。"""
+    if not file_path:
+        return False
+    return any(marker in file_path.replace("\\", "/") for marker in _EXTERNAL_PATH_MARKERS)
+
+
 def _sanitize_mermaid(code: str) -> str:
     """清理 AI 生成的 Mermaid 代码中的常见语法问题。"""
     import re
 
+    # 0. 去掉 AI 可能包裹的 markdown 代码块标记
+    code = re.sub(r'^```(?:mermaid)?\s*\n?', '', code, flags=re.IGNORECASE)
+    code = re.sub(r'\n?```\s*$', '', code)
+
     # 1. 修复未加引号的方括号标签：将 [...内容...] 中没有双引号包裹的标签加上引号
-    #    但要保留已经有引号的，以及子图标题（subgraph X["label"]）
     def _fix_node_label(m: re.Match) -> str:
         node_id = m.group(1)
         label = m.group(2)
@@ -357,16 +378,34 @@ def _sanitize_mermaid(code: str) -> str:
 
     code = re.sub(r'(\w+)\[([^\]]*?)\]', _fix_node_label, code)
 
-    # 2. 移除 HTML 标签
+    # 2. 修复子图标题中未加引号的部分
+    #    subgraph frontend[🧑 前端 (Browser)] → subgraph frontend["🧑 前端 (Browser)"]
+    def _fix_subgraph_label(m: re.Match) -> str:
+        sub_id = m.group(1)
+        label = m.group(2)
+        if label.startswith('"') and label.endswith('"'):
+            return m.group(0)
+        return f'subgraph {sub_id}["{label}"]'
+
+    code = re.sub(r'subgraph\s+(\w+)\[([^\]]+)\]', _fix_subgraph_label, code)
+
+    # 3. 移除 HTML 标签
     code = re.sub(r'<br\s*/?\s*>', ', ', code, flags=re.IGNORECASE)
 
-    # 3. 移除 HTML 实体
+    # 4. 移除 HTML 实体
     code = code.replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
 
-    # 4. 确保节点 ID 不含特殊字符
-    #    (已经通过 re.sub 处理，这里是额外保障)
+    # 5. 移除不可见控制字符（保留常用空白）
+    code = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', code)
 
-    return code
+    # 6. 修复常见的错误箭头语法（如 -->> , ==> , —> 等）
+    code = re.sub(r'-{3,}>', '-->', code)
+    code = re.sub(r'=+>', '-->', code)
+
+    # 7. 去掉空行过多（连续超过 2 个空行 → 1 个空行）
+    code = re.sub(r'\n{3,}', '\n\n', code)
+
+    return code.strip()
 
 
 def _read_function_code(func_name: str, file_path: str, source_root: str = ".") -> str:
@@ -422,6 +461,7 @@ class AiTraceRequest(BaseModel):
 class AiTraceResponse(BaseModel):
     """AI 增强调用链分析响应。"""
     ok: bool = True
+    record_id: str = ""                     # 存储记录 ID，供前端删除/引用
     ai_swimlane: str = ""                    # AI 生成的三泳道图 (Mermaid)
     ai_summary: str = ""                     # AI 生成的自然语言分析
     call_chain: list[NodeInfo] = []          # 后端调用链
@@ -534,6 +574,8 @@ async def ai_trace(body: AiTraceRequest) -> AiTraceResponse:
                     continue
                 node = call_result.nodes.get(func_name, {})
                 fp = node.get("file_path", "") if isinstance(node, dict) else ""
+                if _is_external_path(fp):
+                    continue  # 过滤第三方库函数
                 ln = node.get("line_number", 0) if isinstance(node, dict) else 0
                 code = _read_function_code(func_name, fp, source_root) if fp else ""
                 chain_nodes.append(NodeInfo(
@@ -588,36 +630,35 @@ async def ai_trace(body: AiTraceRequest) -> AiTraceResponse:
     # 读取匹配到的路由处理文件
     if route_info and route_info.get("file_path"):
         fpath = route_info["file_path"]
-        code = _read_source(fpath, 120)
+        code = _read_source(fpath, 80)
         if code:
             source_files[f"后端路由: {fpath}"] = code
 
-    # 读取调用链中项目内部文件的源码
+    # 读取调用链中项目内部文件的源码（限制数量和长度）
     seen_files: set[str] = set()
-    for cn in chain_nodes:
+    for cn in chain_nodes[:5]:  # 最多取前 5 个节点
         fp = cn.file_path
         if fp and fp.startswith("src") and fp not in seen_files and fp not in source_files:
             seen_files.add(fp)
-            code = _read_source(fp, 60)
+            code = _read_source(fp, 40)
             if code:
                 source_files[f"后端: {fp}"] = code
 
     # 读取前端 ApiClient 源码
-    frontend_client = _read_source("frontend/src/api/client.ts", 80)
+    frontend_client = _read_source("frontend/src/api/client.ts", 60)
     if frontend_client:
         source_files["前端 API 层: frontend/src/api/client.ts"] = frontend_client
-    frontend_page = _read_source("frontend/src/pages/ApiClient.tsx", 100)
+    frontend_page = _read_source("frontend/src/pages/ApiClient.tsx", 60)
     if frontend_page:
         # 只取核心发送逻辑部分
         lines = frontend_page.split("\n")
-        # 找 handleSend 函数
         send_start = 0
         for i, l in enumerate(lines):
             if "handleSend" in l or "sendProxyRequest" in l:
-                send_start = max(0, i - 5)
+                send_start = max(0, i - 3)
                 break
-        excerpt = "\n".join(lines[send_start:send_start + 60])
-        source_files["前端页面: frontend/src/pages/ApiClient.tsx (发送逻辑)"] = excerpt
+        excerpt = "\n".join(lines[send_start:send_start + 40])
+        source_files["前端页面发送逻辑"] = excerpt
 
     # 5. 构建 LLM prompt：包含源码 + AST 结果
     source_code_block = ""
@@ -637,46 +678,32 @@ async def ai_trace(body: AiTraceRequest) -> AiTraceResponse:
     headers_desc = "\n".join(f"  {k}: {v}" for k, v in body.headers.items()) if body.headers else "（无）"
     req_body_preview = body.body[:500] if body.body else "（无）"
 
-    user_message = f"""请分析以下 API 请求的完整调用过程，并生成一个三泳道 Mermaid flowchart TD（从上到下）图表。
+    user_message = f"""请分析以下 API 请求的完整调用链路，生成三泳道 Mermaid 图。
 
-【请求信息】
+【请求概览】
 - 方法: {method}
 - URL: {url}
 - 请求头: {headers_desc}
-- 请求体（截断）: {req_body_preview}
+- 请求体（截断 500 字符）: {req_body_preview}
 
-【项目源码参考】
-{source_code_block if source_code_block else "（未找到项目源码，请根据 URL 语义推断）"}
-
-【后端 AST 静态分析结果】
-- 入口: {route_info.get('handler', '未知') if route_info else '未匹配本地路由'}
-- 文件: {route_info.get('file_path', '未知') if route_info else '—'}
-- 调用链:
+【后端 AST 静态分析】
+- 入口函数: {route_info.get('handler', '未知') if route_info else '未匹配本地路由'}
+- 所在文件: {route_info.get('file_path', '—') if route_info else '—'}
+- 调用链（仅项目内函数）:
 {chain_desc}
 - 涉及数据库表:
 {table_desc}
-- 摘要: {ast_summary or '—'}
+- 分析摘要: {ast_summary or '（AST 追踪深度有限，请结合源码推断）'}
 
-【要求】
-1. 你从这个请求的 URL 和方法推断：前端是如何发起调用的（使用 fetch API，从 ApiClient 页面的"发送"按钮触发）
-2. 后端经过哪些层（CORS 中间件 → AuthMiddleware → 路由 handler → Service → 外部 HTTP / 数据库）
-3. 生成一个 Mermaid flowchart TD 三泳道图，分为三个子图:
-   - subgraph frontend["🧑 前端 (Browser)"]
-   - subgraph backend["⚙️ 后端 (FastAPI - mix-agent)"]
-   - subgraph data["🗄️ 数据层 / 外部服务"]
-4. 每个泳道内的节点用中文描述（如 "用户点击发送按钮"、"fetch() 发起请求"、"CORS 中间件校验"）
-5. 节点间用 --> 连接
-6. 只输出 Mermaid 代码和一个中文分析总结，格式如下：
+【关键源码参考（精简版）】
+{source_code_block if source_code_block else "（未找到匹配的项目源码，请根据 URL 语义和常见 FastAPI 架构推断调用链路）"}
 
-===MERMAID===
-flowchart TD
-    subgraph frontend[...]
-        ...
-    end
-    ...
-===SUMMARY===
-（150 字以内的中文分析总结）
-===END==="""
+【输出要求】
+1. 生成 Mermaid flowchart TD 三泳道图（frontend / backend / data）
+2. 节点用中文描述，边用 --> 连接，形成 "前端→后端→数据层→后端→前端" 的完整闭环
+3. 只输出 ===MERMAID=== / ===SUMMARY=== / ===END=== 三段，不要额外解释
+4. SUMMARY 控制在 150 字以内"""
+
 
     # 5. 调用 LLM
     ai_swimlane = ast_swimlane  # fallback
@@ -685,18 +712,68 @@ flowchart TD
     try:
         provider = get_provider("orchestrator")
         system_prompt = """你是一名资深的全栈架构师，擅长分析 API 调用链路并绘制泳道图。
-你的任务是根据用户提供的 API 请求信息和 AST 静态分析结果，
+你的任务是根据用户提供的 API 请求信息、源码片段和 AST 静态分析结果，
 梳理完整的前端→后端→数据层调用过程，并生成标准的 Mermaid flowchart TD 三泳道图。
 
-规则：
-- 泳道图方向为 TD（从上到下）
-- 三个泳道：frontend / backend / data
-- 节点 ID 使用简短英文（如 F1, B2, D3），节点标签用双引号包裹
-- 示例写法：F1["用户点击发送按钮"]
-- 禁止在节点标签中使用 /, (, ), {, }, <, > 等特殊字符，用中文替代
-- 禁止使用 HTML 标签（如 <br/>），用中文逗号分隔
-- 保持简洁，每个泳道 3-7 个节点
-- 输出格式严格遵循 ===MERMAID=== / ===SUMMARY=== / ===END==="""
+=== 核心原则 ===
+1. **基于证据推断**：优先使用提供的源码和 AST 结果；当 AST 数据稀疏时，结合源码片段和 URL 语义合理推断，但不要凭空捏造不存在的步骤。
+2. **简洁至上**：每个泳道保留 3-7 个关键节点，省略过于细节的步骤（如 "变量赋值"、"import 语句" 等）。
+3. **中文描述**：所有节点标签使用中文，让非技术人员也能看懂。
+
+=== Mermaid 语法规则（严格遵循）===
+- 方向：flowchart TD（从上到下）
+- 三个子图泳道：
+  subgraph frontend["🧑 前端 (Browser)"]
+  subgraph backend["⚙️ 后端 (FastAPI)"]
+  subgraph data["🗄️ 数据层 / 外部服务"]
+- 节点 ID：简短英文+数字，如 F1, F2, B1, B2, D1, D2
+- 节点标签：用双引号包裹，如 F1["用户点击发送按钮"]
+- 边：用 --> 连接，表达调用/数据流向
+- **禁止**在标签中使用 / ( ) { } < > 等特殊字符（会破坏 Mermaid 语法），用中文描述替代
+- **禁止**使用 <br/> 等 HTML 标签，用中文逗号或分号分隔
+- **禁止**使用英文函数名作为节点标签（如 "proxy_request()"），改用中文描述（如 "路由处理：代理请求转发"）
+
+=== 示例输出（参考格式）===
+===MERMAID===
+flowchart TD
+    subgraph frontend["🧑 前端 (Browser)"]
+        F1["用户在表单填写目标 URL 和方法"]
+        F2["点击发送按钮触发 handleSend()"]
+        F3["fetch() 发起 HTTP 请求到 /api/v1/proxy"]
+        F4["接收响应并展示结果"]
+    end
+    subgraph backend["⚙️ 后端 (FastAPI)"]
+        B1["CORS 中间件校验来源"]
+        B2["AuthMiddleware 身份认证"]
+        B3["路由处理器 proxy_request 接收请求"]
+        B4["解析并校验 ProxyRequest 参数"]
+        B5["构建目标 URL 并合并查询参数"]
+        B6["httpx.AsyncClient 发起外部 HTTP 请求"]
+        B7["封装 ProxyResponse 并返回"]
+    end
+    subgraph data["🗄️ 数据层 / 外部服务"]
+        D1["目标外部 HTTP 服务"]
+    end
+    F2 --> F3
+    F3 --> B1
+    B1 --> B2
+    B2 --> B3
+    B3 --> B4
+    B4 --> B5
+    B5 --> B6
+    B6 --> D1
+    D1 --> B7
+    B7 --> F4
+===SUMMARY===
+用户通过前端表单发起 HTTP 代理请求。请求经 CORS 校验和身份认证后，由 proxy_request 处理器解析参数、构建目标 URL，再通过 httpx 向外部服务转发。外部响应原样返回前端展示。该接口不涉及数据库操作。
+===END===
+
+=== 注意事项 ===
+- 如果 AST 只找到路由 handler 一个节点，不要慌张：结合源码片段中的 imports、中间件配置、函数调用等推断完整链路。
+- 如果请求头中包含 Authorization，说明前端会添加认证信息。
+- 边的连接要形成完整闭环：前端发起 → 后端处理 → 数据层交互 → 后端响应 → 前端展示。
+- SUMMARY 控制在 150 字以内。"""
+
 
         response = await asyncio.wait_for(
             llm_client.chat_with_prompt(
@@ -731,8 +808,33 @@ flowchart TD
     except Exception as e:
         ai_summary_text = f"AI 分析失败: {e}\n\n回退到 AST 静态分析结果:\n{ast_summary}"
 
+    # 6. 持久化到 SQLite
+    record_id = ""
+    try:
+        import hashlib
+        record_id = hashlib.md5(f"{method}:{url}:{source_root}".encode()).hexdigest()[:24]
+        trace_store.save(
+            record_id=record_id,
+            method=method,
+            url=url,
+            source_root=source_root,
+            result={
+                "ai_swimlane": ai_swimlane,
+                "ai_summary": ai_summary_text,
+                "call_chain": [n.model_dump() for n in chain_nodes],
+                "tables": [t.model_dump() for t in table_refs],
+                "swimlane": ast_swimlane,
+                "diagram_nodes": diagram_nodes,
+                "diagram_edges": diagram_edges,
+                "route_info": route_info,
+            },
+        )
+    except Exception:
+        pass  # 存储失败不影响主流程
+
     return AiTraceResponse(
         ok=True,
+        record_id=record_id,
         ai_swimlane=ai_swimlane,
         ai_summary=ai_summary_text,
         call_chain=chain_nodes,
@@ -742,3 +844,66 @@ flowchart TD
         diagram_edges=diagram_edges,
         route_info=route_info,
     )
+
+
+# ── 分析历史 CRUD ──
+
+
+class TraceHistoryItem(BaseModel):
+    """历史记录摘要（不含完整 result 以减小响应体积）。"""
+    id: str
+    method: str
+    url: str
+    source_root: str | None = None
+    created_at: str | None = None
+
+
+class TraceHistoryListResponse(BaseModel):
+    ok: bool = True
+    items: list[TraceHistoryItem] = []
+    total: int = 0
+
+
+class TraceHistoryDetailResponse(BaseModel):
+    ok: bool = True
+    id: str = ""
+    method: str = ""
+    url: str = ""
+    source_root: str | None = None
+    result: dict | None = None
+    created_at: str | None = None
+
+
+@router.get("/trace-history", response_model=TraceHistoryListResponse)
+def list_trace_history(limit: int = 20, offset: int = 0) -> TraceHistoryListResponse:
+    """列出所有 AI 分析历史记录（按时间倒序）。"""
+    items = trace_store.list_all(limit=limit, offset=offset)
+    total = trace_store.count()
+    return TraceHistoryListResponse(
+        ok=True,
+        items=[TraceHistoryItem(**item) for item in items],
+        total=total,
+    )
+
+
+@router.get("/trace-history/{record_id}", response_model=TraceHistoryDetailResponse)
+def get_trace_history(record_id: str) -> TraceHistoryDetailResponse:
+    """获取单条历史记录的完整详情。"""
+    item = trace_store.get(record_id)
+    if item is None:
+        return TraceHistoryDetailResponse(ok=False)
+    return TraceHistoryDetailResponse(ok=True, **item)
+
+
+@router.delete("/trace-history/{record_id}")
+def delete_trace_history(record_id: str) -> dict:
+    """删除单条历史记录。"""
+    deleted = trace_store.delete(record_id)
+    return {"ok": deleted}
+
+
+@router.delete("/trace-history")
+def clear_trace_history() -> dict:
+    """清空全部历史记录。"""
+    count = trace_store.delete_all()
+    return {"ok": True, "deleted": count}

@@ -384,6 +384,7 @@ class UpdateSettingsBody(BaseModel):
     sqlguard_block_ddl: bool | None = None
     sqlguard_block_unconditional_dml: bool | None = None
     agent_max_concurrency: int | None = None
+    default_project_dir: str | None = None
 
 
 @router.put("/settings")

@@ -235,6 +235,9 @@ class GlobalSettingsSchema(BaseModel):
     # Agent
     agent_max_concurrency: int = 5
 
+    # 项目目录
+    default_project_dir: str = "."
+
 
 class GlobalSettingsResponse(BaseModel):
     """设置项响应。"""

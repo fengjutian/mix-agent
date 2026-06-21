@@ -269,3 +269,25 @@ class LangGraphCheckpoint(Base):
     checkpoint: Mapped[dict] = mapped_column(UniversalJSONB(), nullable=False)
     checkpoint_metadata: Mapped[dict | None] = mapped_column("metadata", UniversalJSONB())
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
+# ©¤©¤ AI trace history ©¤©¤
+
+
+class AiTraceRecord(Base):
+    """AI trace analysis history record. Auto-saved on each ai-trace call."""
+
+    __tablename__ = "ai_trace_records"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    method: Mapped[str] = mapped_column(String(10), nullable=False)
+    url: Mapped[str] = mapped_column(String(2048), nullable=False)
+    source_root: Mapped[str | None] = mapped_column(String(1024))
+    result: Mapped[dict] = mapped_column(UniversalJSONB(), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+    __table_args__ = (
+        Index("idx_trace_records_created", "created_at"),
+    )
