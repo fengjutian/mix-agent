@@ -270,6 +270,3 @@ cd frontend && npm run lint
 
 ---
 
-## 📜 许可证 | License
-
-**Proprietary** — 版权所有 © 2026 QuintaraBio. 保留所有权利。
